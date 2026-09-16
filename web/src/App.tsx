@@ -6,35 +6,43 @@
  * `import.meta.env.VITE_CHATKIT_DOMAIN_KEY`, which is what all four official samples do —
  * is inlined into the bundle by Vite at build time and would make "serve this from a
  * different hostname" a rebuild.
+ *
+ * The same request now also decides whether a login screen exists at all. In `public` mode
+ * the server mints a guest user, so the guard in AppShell passes and the visitor lands in
+ * the classifier; in `private` mode nothing about the old behaviour changes.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Route, Routes } from "react-router-dom";
 
 import AppShell from "./components/AppShell";
 import type { AppConfig } from "./lib/config";
 import { loadConfig } from "./lib/config";
 import { useColorScheme } from "./lib/theme";
+import AdminPage from "./pages/AdminPage";
 import ChatPage from "./pages/ChatPage";
 import HistoryDetailPage from "./pages/HistoryDetailPage";
 import HistoryPage from "./pages/HistoryPage";
 import LoginPage from "./pages/LoginPage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
   const { scheme, toggle } = useColorScheme();
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  const load = useCallback(async (): Promise<void> => {
     setError(null);
-    loadConfig()
-      .then(setConfig)
-      .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : "Невідома помилка");
-      });
+    try {
+      setConfig(await loadConfig());
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Невідома помилка");
+    }
   }, []);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (error !== null) {
     return (
@@ -42,7 +50,7 @@ export default function App() {
         <div className="card max-w-sm p-6 text-center">
           <p className="text-sm font-medium">Не вдалося завантажити конфігурацію</p>
           <p className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400">{error}</p>
-          <button type="button" className="btn-primary mt-4" onClick={load}>
+          <button type="button" className="btn-primary mt-4" onClick={() => void load()}>
             Спробувати ще раз
           </button>
         </div>
@@ -58,16 +66,73 @@ export default function App() {
     );
   }
 
+  // In public mode `/api/config` mints a guest, so `user` should never be null here. If it
+  // is — a first-ever visit whose Set-Cookie has not landed, or a browser refusing cookies —
+  // the ONE thing we must not do is what the old guard did and send them to /login: in
+  // public mode that is a screen with no password behind it, and the redirect would repeat
+  // on every load. So: retry once, then say plainly what happened. /login stays routable
+  // throughout, because the author still has to be able to sign in and close the demo.
+  const awaitingGuest = config.accessMode === "public" && config.user === null;
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage config={config} />} />
-      {/* Pathless layout route: the shell holds the auth guard, so every child is guarded. */}
-      <Route element={<AppShell config={config} scheme={scheme} onToggleTheme={toggle} />}>
-        <Route index element={<ChatPage config={config} scheme={scheme} />} />
-        <Route path="history" element={<HistoryPage />} />
-        <Route path="history/:id" element={<HistoryDetailPage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {awaitingGuest ? (
+        <Route path="*" element={<GuestSessionPending onRetry={load} />} />
+      ) : (
+        /* Pathless layout route: the shell holds the auth guard, so every child is guarded. */
+        <Route element={<AppShell config={config} scheme={scheme} onToggleTheme={toggle} />}>
+          <Route index element={<ChatPage config={config} scheme={scheme} />} />
+          <Route path="history" element={<HistoryPage />} />
+          <Route path="history/:id" element={<HistoryDetailPage />} />
+          {/* Hidden: linked only from the ✦ a superuser sees, 404-ed by the server for
+              everyone else — and a 404 renders exactly the NotFoundPage below. */}
+          <Route path="admin" element={<AdminPage config={config} />} />
+          {/* Inside the layout on purpose: an unknown URL and a forbidden /admin have to
+              look identical, header included. */}
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      )}
     </Routes>
+  );
+}
+
+/**
+ * Exactly one automatic retry (the ref survives StrictMode's double-invoked effect), then a
+ * manual button. Never an automatic reload loop.
+ */
+function GuestSessionPending({ onRetry }: { onRetry: () => Promise<void> }) {
+  const [busy, setBusy] = useState(true);
+  const started = useRef(false);
+
+  const retry = useCallback(() => {
+    setBusy(true);
+    void onRetry().finally(() => setBusy(false));
+  }, [onRetry]);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    retry();
+  }, [retry]);
+
+  return (
+    <div className="flex h-full items-center justify-center px-4">
+      <div className="card max-w-sm p-6 text-center">
+        {busy ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">Готуємо демо-сесію…</p>
+        ) : (
+          <>
+            <p className="text-sm font-medium">Не вдалося створити демо-сесію</p>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Найімовірніше браузер блокує файли cookie для цього сайту.
+            </p>
+            <button type="button" className="btn-primary mt-4" onClick={retry}>
+              Спробувати ще раз
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

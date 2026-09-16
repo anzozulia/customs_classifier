@@ -22,8 +22,10 @@ you expose the dev server through ngrok/cloudflared.
 
 ## What the server must provide
 
-The frontend touches exactly seven endpoints. Everything is same-origin; the session cookie
-is the only credential.
+The frontend touches seven endpoints, plus the eight under `/api/admin/` that only the
+hidden panel calls (documented in `ADMIN-MILESTONE.md`; every one of them answers **404**,
+never 403, to anyone who is not a superuser, which is what `AdminPage` renders the ordinary
+not-found state for). Everything is same-origin; the session cookie is the only credential.
 
 ### `GET /api/config` — public, always 200
 
@@ -34,7 +36,13 @@ Read once on mount, before anything renders.
   "domain_key": "domain_pk_…",
   "locale": "uk-UA",
   "chatkit_url": "/chatkit",
-  "user": { "username": "anton" }
+  "access_mode": "public",
+  "user": {
+    "username": "guest_BnJTjqB31cEO48xT",
+    "display_name": "Гість",
+    "kind": "guest",
+    "is_superuser": false
+  }
 }
 ```
 
@@ -43,6 +51,14 @@ and it is why this endpoint must not require auth. The domain key is a **public*
 ships in the page either way. camelCase keys (`domainKey`, `chatkitUrl`) are accepted too.
 A missing `domain_key` is a hard error with a visible message, because a ChatKit frame
 without one deletes itself from the DOM and leaves an empty box.
+
+`access_mode` is the runtime switch (`public` | `private`), and anything the client cannot
+read as a literal `"public"` is treated as private — an unreadable answer must never render
+the app as open. In **public** mode this request is also what MINTS the visitor: the server
+creates a real `app_user` row with `kind: "guest"` and sets the session cookie on this very
+response, so a first-ever visitor has an identity, and therefore a private history, before
+they type anything. `is_superuser` gates the ✦ link to `/admin` — the link only; the data
+behind it is gated by the server.
 
 ### `POST /api/login` — form-encoded
 

@@ -25,6 +25,7 @@ stream, and everything between them — `build_agent`, `render_system_prompt`, t
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -63,6 +64,8 @@ os.environ.setdefault("PUBLIC_BASE_URL", "http://testserver")
 os.environ.setdefault("DATABASE_URL", "postgresql://unused:unused@127.0.0.1:5432/unused")
 
 import app.chat.server as server_module  # noqa: E402
+import app.db as db  # noqa: E402
+import app.runtime_settings as runtime_settings  # noqa: E402
 from app.agent.provenance import CodeEvidence  # noqa: E402
 from app.chat.server import ClassifierServer  # noqa: E402
 from app.context import RequestContext  # noqa: E402
@@ -308,6 +311,80 @@ async def test_the_record_is_opened_before_the_model_runs(
     assert recorder.begin["prompt_version"] == server_module.PROMPT_VERSION
     assert len(recorder.begin["prompt_sha256"]) == 64  # the real rendered-prompt digest
     assert recorder.begin["ctx"].user_id == 7
+
+
+class _SettingsPool:
+    """`app_setting`, the way `app/runtime_settings.py` reads it.
+
+    One statement for all three keys, and JSONB comes back from asyncpg as a `str` because
+    no codec is installed (`app/db.py`) — hence `json.dumps`.
+    """
+
+    def __init__(self, **values: str) -> None:
+        self._values = values
+
+    async def fetch(self, _sql: str, *_args: Any) -> list[dict[str, Any]]:
+        return [
+            {
+                "key": key,
+                "value": json.dumps(value),
+                "updated_at": datetime.now(),
+                "updated_by": None,
+            }
+            for key, value in self._values.items()
+        ]
+
+    async def fetchrow(self, _sql: str, *_args: Any) -> None:
+        return None
+
+
+async def test_the_runtime_model_and_effort_reach_the_agent_and_the_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The admin panel's model select is only real if the next turn actually runs that model.
+
+    `respond()` resolves both values once, from `app/runtime_settings.py`, and feeds the same
+    two strings to the agent it builds, to the `classification` row it opens and to the turn
+    summary it logs. This asserts all three off ONE override written where a superuser's
+    `PUT /api/admin/settings` writes it — not off a patched `get_runtime`, which would only
+    prove that a mock was called.
+    """
+    recorder = _Recorder()
+    recorder.install(monkeypatch)
+    monkeypatch.setattr(db, "_pool", _SettingsPool(model="gpt-5.6-luna", reasoning_effort="high"))
+    runtime_settings.invalidate_cache()
+    agents: list[Any] = []
+
+    try:
+        server = _server(
+            monkeypatch,
+            items=[_user_message("мотоцикл 650 см3")],
+            stream=_script(outcome="result", emitted=[CODE]),
+            run=_FakeRun(usage=_Usage(), turns=1),
+        )
+        inner = server_module.Runner.run_streamed
+
+        class _CapturingRunner:
+            @staticmethod
+            def run_streamed(agent: Any, *args: Any, **kwargs: Any) -> _FakeRun:
+                agents.append(agent)
+                return inner(agent, *args, **kwargs)
+
+        monkeypatch.setattr(server_module, "Runner", _CapturingRunner)
+
+        await _drain(server, _user_message("мотоцикл 650 см3"))
+    finally:
+        # The snapshot has a 3-second TTL and is a module global; leaving 'luna' in it would
+        # fail the very next test in this file, which asserts the environment default.
+        runtime_settings.invalidate_cache()
+
+    assert len(agents) == 1
+    # The agent that ran, not the one `app/settings.py` would have built.
+    assert agents[0].model == "gpt-5.6-luna"
+    assert agents[0].model_settings.reasoning.effort == "high"
+    # …and the row records the model that ran, which is what `price_usd` is applied to.
+    assert recorder.begin["model"] == "gpt-5.6-luna"
+    assert get_settings().model != "gpt-5.6-luna", "otherwise this test proves nothing"
 
 
 async def test_a_finished_turn_closes_the_record_with_ledger_resolved_codes(

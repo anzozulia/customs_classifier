@@ -81,18 +81,23 @@ def _configure_openai() -> None:
 _configure_openai()
 
 
-def model_settings() -> ModelSettings:
+def model_settings(reasoning_effort: str | None = None) -> ModelSettings:
     """Always passed explicitly.
 
     `Agent.__post_init__` re-derives settings from a regex on the model name, and every
     `^gpt-5.6-…` pattern maps to `effort="none"` — which contradicts the API's own documented
     default and which the web-search guide warns degrades search quality. An `Agent(model=…)`
     with no settings behaves very differently from a raw Responses call with the same model.
+
+    `reasoning_effort` is handed in by `ClassifierServer.respond()`, which reads it from the
+    RUNTIME settings layer (`app/runtime_settings.py`) so that changing it in the admin panel
+    reaches the next turn without a redeploy. `None` means "whatever the environment says",
+    which is what every caller outside a live turn wants.
     """
-    settings = get_settings()
+    effort = reasoning_effort or get_settings().reasoning_effort
     return ModelSettings(
         # summary="auto" is what makes ChatKit render the Thinking panel at all.
-        reasoning=Reasoning(effort=settings.reasoning_effort, summary="auto"),  # type: ignore[arg-type]
+        reasoning=Reasoning(effort=effort, summary="auto"),  # type: ignore[arg-type]
         verbosity="low",
         timeout=90.0,  # per model-call attempt. v1 had none and ate 600s read timeouts twice.
         include_usage=True,  # v1 never recorded a single token count.
@@ -135,18 +140,25 @@ async def finalize_on_terminal_tool(
     return ToolsToFinalOutputResult(is_final_output=False, final_output=None)
 
 
-@lru_cache(maxsize=2)
-def build_agent(instructions: str) -> Agent[UktzedContext]:
-    """Build the agent for one rendered system prompt.
+@lru_cache(maxsize=16)
+def build_agent(
+    instructions: str, model: str | None = None, reasoning_effort: str | None = None
+) -> Agent[UktzedContext]:
+    """Build the agent for one rendered system prompt, model and reasoning effort.
 
     Cached because the prompt is static per dataset and rebuilding nine tool definitions on every
-    turn is pure waste. Keyed on the instructions so a prompt change is picked up for free.
+    turn is pure waste. Keyed on all three arguments so that a prompt change, a model change or
+    an effort change is picked up for free — and so that switching the model in the admin panel
+    cannot be answered from the previous model's cached agent. Both overrides default to the
+    environment, which keeps every caller that only has a prompt (the eval harness, the M0
+    spike, the wiring tests) working unchanged. `maxsize` covers two locales x the priced
+    models x the three efforts with room to spare; an Agent is cheap and this is not a leak.
     """
     settings = get_settings()
     return Agent[UktzedContext](
         name=AGENT_NAME,
-        model=settings.model,
-        model_settings=model_settings(),
+        model=model or settings.model,
+        model_settings=model_settings(reasoning_effort),
         instructions=instructions,  # STATIC. Never built from user text.
         tools=[
             list_groups_in_section,

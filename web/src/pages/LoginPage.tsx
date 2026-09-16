@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { Navigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 
 import type { AppConfig } from "../lib/config";
 
@@ -18,7 +18,10 @@ export default function LoginPage({ config }: { config: AppConfig }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (config.user) {
+  // A GUEST must not be bounced off this page. In public mode every visitor has a user row,
+  // the author included — and the author still has to be able to sign in HERE to reach the
+  // panel and close the demo. So only a real account counts as "already signed in".
+  if (config.user && config.user.kind === "human") {
     return <Navigate to={next} replace />;
   }
 
@@ -66,6 +69,17 @@ export default function LoginPage({ config }: { config: AppConfig }) {
     <div className="flex h-full items-center justify-center px-4">
       <div className="card w-full max-w-sm p-6">
         <h1 className="text-lg font-semibold tracking-tight">Класифікатор УКТЗЕД</h1>
+
+        {config.accessMode === "public" && (
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            Зараз відкрито публічний доступ — щоб користуватися класифікатором, входити не
+            потрібно.{" "}
+            <Link className="underline underline-offset-2" to="/">
+              Повернутися до класифікатора
+            </Link>
+            .
+          </p>
+        )}
 
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
           <div>
