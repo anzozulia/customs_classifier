@@ -32,6 +32,7 @@ from pydantic import ValidationError
 from app.auth.deps import CurrentUser, current_user, require_same_origin
 from app.chat.errors import classify_error, is_retryable
 from app.context import RequestContext
+from app.runtime_settings import get_access_mode
 from app.settings import get_settings
 
 logger = logging.getLogger("uktzed.chat")
@@ -132,11 +133,28 @@ async def client_config(request: Request) -> JSONResponse:
     Both key spellings are emitted on purpose. The frontend accepts either (`config.ts`), the
     two chunks that wrote the two sides documented different ones, and one duplicated public
     string is cheaper than a deploy-day mismatch that manifests as a self-deleting iframe.
+
+    Since 0005 this route is also where a PUBLIC-mode visitor becomes somebody. `current_user`
+    mints a guest `app_user` row when there is no session and the mode allows it, and writes
+    {uid, ep, iat} into `request.session` — so `SessionMiddleware` puts a `Set-Cookie` on this
+    very response and the SPA's first request is what gives a first-ever visitor an identity,
+    and therefore a private history, before they type anything. Minting stays here rather than
+    moving to /chatkit because the SPA reads `user` from this route to decide what to render.
     """
     settings = get_settings()
+
+    # Read the mode explicitly rather than inferring it from `user`. A logged-in human
+    # short-circuits `current_user` without consulting it at all, and the SPA needs it in
+    # every case: it decides the «демо» pill, the «Гість» label and whether /login is a
+    # dead end. One primary-key lookup on a three-row table, once per page load.
+    access_mode = await get_access_mode()
+
     try:
         user = await current_user(request)
     except HTTPException:
+        # Private mode with no session — and also the 503 `ensure_guest` raises if it cannot
+        # mint. Either way this route answers 200 with `user: null`, because /login reads it
+        # too and a 401 here is a redirect loop.
         user = None
 
     return JSONResponse(
@@ -146,7 +164,17 @@ async def client_config(request: Request) -> JSONResponse:
             "locale": "uk-UA",
             # One URL; the operation is in the POST body, not in the path.
             "chatkit_url": "/chatkit",
-            "user": {"username": user.username, "display_name": user.display_name}
+            "access_mode": access_mode,
+            "user": {
+                "username": user.username,
+                "display_name": user.display_name,
+                # A guest is a real app_user row, so these two are the only thing that tells
+                # the SPA it is one — and `is_superuser` is what reveals the ✦ entry point to
+                # the hidden panel. The panel's DATA is gated by `require_superuser`; this
+                # flag only decides whether a link is drawn.
+                "kind": user.kind,
+                "is_superuser": user.is_superuser,
+            }
             if user
             else None,
         },

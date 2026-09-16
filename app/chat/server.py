@@ -68,6 +68,7 @@ from app.chat.converter import converter
 from app.chat.errors import classify_error, is_retryable, user_message
 from app.context import RequestContext
 from app.records import begin_turn, codes_from_ledger, fail_turn, finish_turn
+from app.runtime_settings import get_runtime
 from app.settings import get_settings
 from app.tariff.catalogue import build_sections_catalogue
 from app.tariff.repo import TariffRepo
@@ -165,6 +166,19 @@ class ClassifierServer(ChatKitServer[RequestContext]):
             catalogue=await self.section_catalogue(), locale=context.locale
         )
 
+        # The model and the reasoning effort are resolved PER TURN, from the runtime settings
+        # layer, because the admin panel can change both without a redeploy. `get_runtime`
+        # serves them from a 3-second in-process cache (see app/runtime_settings.py), so this
+        # is not two queries per turn, and it falls back to `app/settings.py` — i.e. to the
+        # environment — when `app_setting` has no row or the database will not answer.
+        #
+        # Both are read ONCE, here, and then used everywhere: the agent that runs, the
+        # `classification` row that is opened below, and the turn-summary log line. v1's
+        # banner named one model while the code constructed another; the fix is not a
+        # comment, it is that there is a single value and all three sinks read it.
+        model = await get_runtime("model")
+        reasoning_effort = await get_runtime("reasoning_effort")
+
         agent_ctx = UktzedContext(
             thread=thread,
             store=self.store,
@@ -181,14 +195,14 @@ class ClassifierServer(ChatKitServer[RequestContext]):
             context,
             input_text=_message_text(input_user_message) or _product_text(input_items),
             thread_id=thread.id,
-            model=settings.model,
+            model=model,
             prompt_version=PROMPT_VERSION,
             prompt_sha256=prompt_sha,
             dataset_sha256=await self.dataset_sha256(),
         )
 
         result = Runner.run_streamed(
-            build_agent(prompt_text),
+            build_agent(prompt_text, model, reasoning_effort),
             input_items,
             context=agent_ctx,
             max_turns=settings.max_turns,
@@ -258,7 +272,7 @@ class ClassifierServer(ChatKitServer[RequestContext]):
                 thread.id,
                 agent_ctx.outcome,
                 error_class,
-                settings.model,  # from config, NEVER a literal in a log line
+                model,  # the effective model, NEVER a literal in a log line
                 PROMPT_VERSION,
                 prompt_sha[:12],
                 result.current_turn,

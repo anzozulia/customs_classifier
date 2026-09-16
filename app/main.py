@@ -27,18 +27,33 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
+from app.admin.routes import router as admin_router
 from app.auth.routes import router as auth_router
 from app.chat.routes import router as chat_router
 from app.chat.server import ClassifierServer
 from app.chat.store import PgStore
 from app.db import close_pool, init_pool
 from app.records.routes import router as records_router
+from app.runtime_settings import get_runtime
 from app.settings import Settings, get_settings
 from app.tariff.repo import TariffRepo
 
 logger = logging.getLogger("uktzed")
 
-SESSION_MAX_AGE_S = 14 * 24 * 3600
+# How long a signed session cookie stays valid — and, since 0005, how long a GUEST keeps
+# their history. That is what sets the number: a guest has no password, no email and no
+# recovery flow, so this cookie is the ONLY handle they have on their own conversations. At
+# 14 days a visitor who came back after a fortnight silently became a different person with
+# an empty history, which is precisely the requirement ("history survives closing and
+# reopening the browser") failing quietly. 90 days covers a demo period and the weeks after
+# it, and `_SLIDING_REFRESH_S` in app/auth/deps.py re-signs the cookie daily for anyone who
+# keeps using the app, so it is a floor rather than a deadline.
+#
+# A long cookie is not a weaker cookie here: every request re-reads the row and checks
+# `is_active` and `session_epoch` (so a password change or `disable-user` revokes instantly),
+# flipping the access mode to 'private' clears guest sessions on their very next request, and
+# `python -m app.cli purge-guests` deletes the rows themselves.
+SESSION_MAX_AGE_S = 90 * 24 * 3600
 
 
 @asynccontextmanager
@@ -101,6 +116,10 @@ app.include_router(chat_router)
 # Starlette matches in registration order, so a router included after that mount is
 # unreachable — the static handler answers /api/history with its own 404 first.
 app.include_router(records_router)
+# /api/admin/*. Every route on it is behind `require_superuser`, which answers 404 rather
+# than 403, so for everyone else these paths are indistinguishable from the ones that were
+# never registered. Included here for the same registration-order reason as the others.
+app.include_router(admin_router)
 
 
 class _SpaFiles(StaticFiles):
@@ -148,7 +167,6 @@ async def healthz() -> JSONResponse:
 @app.get("/readyz")
 async def readyz(request: Request) -> JSONResponse:
     """Readiness: can this process actually serve a classification right now?"""
-    settings = get_settings()
     checks: dict[str, object] = {}
     ok = True
 
@@ -171,8 +189,14 @@ async def readyz(request: Request) -> JSONResponse:
         checks["tariff_nodes"] = f"error: {type(exc).__name__}"
         ok = False
 
-    checks["model"] = settings.model or None
-    ok &= bool(settings.model)
+    # The EFFECTIVE model, not the configured one. Since 0005 a superuser can change it from
+    # the admin panel with no redeploy, and a readiness probe still reporting the .env value
+    # would be v1's lying banner with a new coat of paint. `get_runtime` falls back to the
+    # environment when `app_setting` holds no row — and when the database is unreachable, a
+    # case the `db` check above has already reported — so it cannot raise here.
+    model = await get_runtime("model")
+    checks["model"] = model or None
+    ok &= bool(model)
 
     return JSONResponse(
         {"status": "ok" if ok else "not_ready", "checks": checks},

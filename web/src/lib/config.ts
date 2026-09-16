@@ -6,12 +6,34 @@
  * registered for. The key is public — it ships in the page either way — so the only thing
  * build-time inlining buys is a rebuild step. `GET /api/config` is a few bytes and one
  * request before first paint.
+ *
+ * Since the access mode became runtime-switchable this endpoint also carries the answer to
+ * "do I need a login screen?". That answer MUST come from here rather than from the bundle:
+ * the whole point of the mode switch is that flipping it takes effect on the next request,
+ * with no redeploy.
  */
 
 import type { SupportedLocale } from "@openai/chatkit";
 
+/**
+ * `public` — anyone who opens the URL is given a guest session and can classify.
+ * `private` — a login is required and guest sessions stop resolving immediately.
+ */
+export type AccessMode = "public" | "private";
+
+/**
+ * A guest is a REAL user row, not a parallel identity, so this is the same shape either
+ * way. `kind` exists only so the UI can address a guest as «Гість» and hide the affordances
+ * that make no sense for one.
+ */
+export type UserKind = "human" | "guest";
+
 export type AppUser = {
   username: string;
+  displayName: string | null;
+  kind: UserKind;
+  /** Gates the ✦ link to /admin. The server gates the DATA; this only gates the link. */
+  isSuperuser: boolean;
 };
 
 export type AppConfig = {
@@ -23,6 +45,8 @@ export type AppConfig = {
   chatkitUrl: string;
   /** null when there is no session. `/api/config` is public so /login can render. */
   user: AppUser | null;
+  /** Defaults to `private` when the server does not say — the closed state is the safe one. */
+  accessMode: AccessMode;
 };
 
 /**
@@ -30,7 +54,9 @@ export type AppConfig = {
  *
  *   GET /api/config -> 200, always
  *   { "domain_key": "...", "locale": "uk-UA", "chatkit_url": "/chatkit",
- *     "user": { "username": "anton" } | null }
+ *     "access_mode": "public" | "private",
+ *     "user": { "username": "guest_7f3a1c", "display_name": null,
+ *               "kind": "human" | "guest", "is_superuser": false } | null }
  *
  * camelCase keys are accepted too, so a pydantic alias generator on the other side of the
  * seam is not a bug report.
@@ -57,6 +83,7 @@ export async function loadConfig(): Promise<AppConfig> {
     locale: toSupportedLocale(firstString(raw.locale)),
     chatkitUrl: firstString(raw.chatkit_url, raw.chatkitUrl) ?? "/chatkit",
     user: toUser(raw.user),
+    accessMode: toAccessMode(firstString(raw.access_mode, raw.accessMode)),
   };
 }
 
@@ -67,10 +94,28 @@ function firstString(...values: unknown[]): string | null {
   return null;
 }
 
+function firstBool(...values: unknown[]): boolean {
+  return values.some((value) => value === true);
+}
+
 function toUser(value: unknown): AppUser | null {
   if (value === null || typeof value !== "object") return null;
-  const username = firstString((value as Record<string, unknown>).username);
-  return username ? { username } : null;
+  const record = value as Record<string, unknown>;
+  const username = firstString(record.username);
+  if (!username) return null;
+  return {
+    username,
+    displayName: firstString(record.display_name, record.displayName),
+    // Unknown → "human": the guest branch only ever REMOVES affordances (sign-out, the
+    // login redirect), so guessing "guest" for a real account would be the harmful default.
+    kind: firstString(record.kind) === "guest" ? "guest" : "human",
+    isSuperuser: firstBool(record.is_superuser, record.isSuperuser),
+  };
+}
+
+/** Anything but a literal "public" is private. An unreadable answer must not open the app. */
+function toAccessMode(value: string | null): AccessMode {
+  return value === "public" ? "public" : "private";
 }
 
 /**
