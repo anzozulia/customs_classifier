@@ -1,0 +1,167 @@
+# UKTZED v2 — the whole deployment: caddy, app, db, and a one-shot migrate.
+#
+#   docker compose up -d --build
+#
+# Reads .env from this directory (copy .env.example). Two variables used here are
+# NOT in .env.example because only the proxy needs them:
+#   UKTZED_DOMAIN   public hostname; defaults to `localhost` (Caddy internal CA)
+#   ACME_EMAIL      Let's Encrypt contact address
+name: uktzed
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    # Without this a 60-second-streaming app fills the VPS disk and Postgres stops
+    # accepting writes. 10 MB x 5 per container is plenty to debug a bad deploy.
+    max-size: "10m"
+    max-file: "5"
+
+# app and migrate are the SAME image. Naming it explicitly means compose builds it
+# once instead of once per service.
+x-app-image: &app-image
+  image: uktzed-app:${APP_VERSION:-dev}
+  build:
+    context: .
+    args:
+      APP_VERSION: ${APP_VERSION:-dev}
+
+services:
+  # ---------------------------------------------------------------------------
+  # caddy — the only container with published ports. TLS, CSP, SSE passthrough.
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    # `environment`, not `env_file`: the proxy has no business holding OPENAI_API_KEY.
+    # Caddy expands {$VAR} in the Caddyfile at config-load time.
+    environment:
+      UKTZED_DOMAIN: ${UKTZED_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-ops@example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # ACME account key + issued certs — BACK THIS UP
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on:
+      app:
+        condition: service_healthy
+    # No healthcheck, deliberately: nothing depends_on caddy, so a healthcheck here
+    # would gate nothing. `restart: unless-stopped` covers a crash.
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # migrate — one-shot. Runs to completion before app starts, then exits.
+  # ---------------------------------------------------------------------------
+  # NEVER fold this into the app entrypoint: with --workers 2 two processes would
+  # race the same alembic_version row. If `upgrade head` exits non-zero, app never
+  # starts — which is the behaviour you want.
+  migrate:
+    <<: *app-image
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    env_file: [.env]
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # app — FastAPI + uvicorn. No published port: reachable only through caddy.
+  # ---------------------------------------------------------------------------
+  app:
+    <<: *app-image
+    restart: unless-stopped
+    env_file: [.env]
+    # The absence of `ports:` is the precondition that makes --forwarded-allow-ips=*
+    # safe. Add a port here and you have created a client-IP spoofing hole.
+    command:
+      - uvicorn
+      - app.main:app
+      - "--host=0.0.0.0"
+      - "--port=8000"
+      # Redundancy against a crash, not throughput — the workload is ~100% awaiting
+      # OpenAI. Each worker holds its own pool and its own parsed tariff tree; do not
+      # exceed 2-3 on a 2-vCPU box.
+      - "--workers=2"
+      # request.url.scheme must be https behind Caddy: we set Secure cookies and issue
+      # redirects off it.
+      - "--proxy-headers"
+      - "--forwarded-allow-ips=*"
+      # Caddy holds keep-alives to the upstream; uvicorn's 5s default closes them
+      # constantly. Cosmetic, not correctness.
+      - "--timeout-keep-alive=75"
+      # Unset means "wait forever", so one wedged stream blocks `compose down` forever.
+      # 75s lets a typical 60-80s classification finish and stays under the 90s
+      # stop_grace_period below, so uvicorn exits cleanly instead of being SIGKILLed.
+      - "--timeout-graceful-shutdown=75"
+      # The supervisor pings each worker every 0.5s and SIGKILLs one that fails to pong
+      # inside this window — destroying every in-flight stream in it with no grace.
+      # The default is 5s. If your pinned uvicorn rejects this flag ("No such option"),
+      # delete this line: it was verified against a newer uvicorn than the pin.
+      - "--timeout-worker-healthcheck=30"
+      # --limit-concurrency is deliberately NOT set: it answers 503, and a 5xx on a
+      # streaming op is retried 5x by the client (~25s of dead air and 5x the bill).
+      # Cap at the OpenAI client with a semaphore, which queues instead of rejecting.
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # /healthz is liveness + SELECT 1. It deliberately does not call OpenAI: an
+      # OpenAI outage must not make Docker restart-loop the container.
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s # covers loading the 2.4 MB tariff tree at startup
+    # Docker's default is 10s. A redeploy would SIGKILL every in-flight 60-second
+    # classification — and a 5xx during the restart window is retried 5x.
+    stop_grace_period: 90s
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # db — Postgres 17. pg_trgm ships in the official image's contrib set, so the
+  # migrations can `CREATE EXTENSION IF NOT EXISTS pg_trgm` with no custom image.
+  # (When embeddings land in M4, swap this for pgvector/pgvector:pg17 — same data
+  # directory layout, same major version.)
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-uktzed}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Deterministic initdb; avoids surprises in text ordering for Ukrainian data.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    # NO `ports:`. v1 published 5432 to 0.0.0.0 with the default password; that is the
+    # single worst thing in its deployment and it is not repeated here. The .env.example
+    # password is only acceptable BECAUSE this port is unreachable from outside.
+    # To poke at the database:            docker compose exec db psql -U postgres uktzed
+    # If you truly need a local GUI client, bind to loopback only and remove it after:
+    #   ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ escapes compose interpolation: this is the container's own environment.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+
+volumes:
+  pg_data:
+  caddy_data:
+  caddy_config:
+  caddy_logs:

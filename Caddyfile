@@ -1,0 +1,186 @@
+# UKTZED v2 reverse proxy.
+#
+# The one hard requirement this file exists for: POST /chatkit answers with a
+# `text/event-stream` that stays open for 30-60 seconds and is SILENT between
+# events — chatkit-python emits no heartbeat frames at all. So every timeout on
+# the path must either be infinite or longer than the slowest classification, and
+# nothing may buffer the body.
+#
+# Why Caddy and not nginx: Caddy flushes `text/event-stream` immediately with zero
+# configuration and has no write timeout by default, and its shutdown grace period
+# is eternal, so `caddy reload` does not cut in-flight streams. nginx needs six
+# directives right (proxy_buffering off, proxy_read_timeout, proxy_send_timeout,
+# gzip off, proxy_cache off, proxy_http_version 1.1) or the app looks broken.
+#
+# Two variables, injected by docker-compose (Caddy expands {$VAR} at config load):
+#   UKTZED_DOMAIN   public hostname, e.g. uktzed.example.com.
+#                   Defaults to `localhost`, where Caddy uses its internal CA — so
+#                   `docker compose up` works on a laptop with no DNS and no ACME.
+#   ACME_EMAIL      Let's Encrypt contact address.
+
+{
+	email {$ACME_EMAIL}
+
+	servers {
+		timeouts {
+			# Request HEADERS. Strict on purpose; a slow-loris gets 10 seconds.
+			read_header 10s
+
+			# Request BODY. A ChatKit op is a few KB of JSON — 30s is already generous.
+			# This is a REQUEST-side timeout and has no effect on the SSE response.
+			read_body 30s
+
+			# ---- THE ONE THAT KILLS SSE IF YOU GET IT WRONG ----
+			# How long a write to the client may take. A finite value here closes the
+			# connection mid-stream, and a failure AFTER response headers are sent is
+			# fatal and never retried by ChatKit — the user's message simply vanishes.
+			# 0 = no timeout. That is already Caddy's default; it is spelled out so
+			# that nobody "hardens" it to 30s in six months without reading this.
+			write 0
+
+			# Idle keep-alive between requests on a connection. Caddy's default is 5m;
+			# raised so a browser tab left open through a long think does not have to
+			# re-handshake. Does NOT apply while a response is streaming.
+			idle 10m
+		}
+	}
+
+	# The admin API listens on 127.0.0.1:2019 inside the container only, so it is not
+	# reachable from the host or the internet. Uncomment to switch it off entirely —
+	# `caddy reload` then requires a container restart.
+	# admin off
+}
+
+{$UKTZED_DOMAIN} {
+	# ---------------------------------------------------------------------------
+	# Compression — explicitly scoped, and that scoping is the point.
+	# ---------------------------------------------------------------------------
+	# `encode zstd gzip` with no matcher uses Caddy's default response matcher,
+	# which includes `text/*` — and that catches `text/event-stream`. A compressor
+	# holds bytes until it has enough to emit, which re-introduces exactly the
+	# buffering this whole file exists to prevent. The list below is every content
+	# type worth compressing on this app and deliberately excludes event streams.
+	encode {
+		zstd
+		gzip
+		match {
+			header Content-Type text/html*
+			header Content-Type text/css*
+			header Content-Type text/plain*
+			header Content-Type text/javascript*
+			header Content-Type application/javascript*
+			header Content-Type application/json*
+			header Content-Type image/svg+xml*
+		}
+	}
+
+	# ---------------------------------------------------------------------------
+	# Security headers
+	# ---------------------------------------------------------------------------
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# allow-popups, not plain same-origin: COOP does not affect iframes, but the
+		# strict value severs window.opener for any popup the hosted UI might open.
+		Cross-Origin-Opener-Policy "same-origin-allow-popups"
+		# Nothing here uses them. Note that enabling ChatKit's dictation would need
+		# microphone=(self) — and the composer is inside a cross-origin iframe, so it
+		# would need to be delegated there too.
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+
+		# -------------------------------------------------------------------------
+		# CSP — READ THIS BEFORE CHANGING IT. It is the most likely deploy-day
+		# failure in the whole system, and two of its clauses fail in ways that do
+		# not look like CSP failures.
+		#
+		# script-src https://cdn.platform.openai.com
+		#     chatkit.js is loaded from OpenAI's CDN as a classic <script src>. It
+		#     reads document.currentScript.src at module-evaluation time to derive
+		#     the iframe URL, so it CANNOT be re-hosted or bundled. Block it and
+		#     there is no chat element at all.
+		#
+		# frame-src https://cdn.platform.openai.com
+		#     The entire chat UI — transcript, composer, header, history panel — is
+		#     a cross-origin iframe served from that CDN.
+		#
+		# connect-src https://api.openai.com
+		#     The loader calls POST https://api.openai.com/v1/chatkit/domain_keys/verify
+		#     and UNMOUNTS the chat if it does not get an answer: it fails closed on
+		#     network errors too, after a 10s abort and one retry. The research argues
+		#     that fetch is issued by the iframe and therefore governed by the iframe's
+		#     own CSP, not ours — but this has never been loaded in a real browser, the
+		#     failure mode is "the chat box is silently gone", and allowlisting one
+		#     origin we already trust costs nothing. Keep it.
+		#     'self' covers the same-origin POST /chatkit stream.
+		#
+		# style-src 'unsafe-inline'
+		#     MANDATORY. Measured: with style-src 'self' the loader's shadow <style>
+		#     is blocked and ChatKit renders as a 300x150px box in light mode while
+		#     STILL firing chatkit.ready and throwing nothing. A sha256 hash works
+		#     today, but the loader is unversioned (max-age=300) and auto-updates, so
+		#     a hash is a time bomb.
+		#
+		# No worker-src: verified that the outer shim contains no `new Worker` and no
+		# createObjectURL, so blob: script sources are not needed.
+		#
+		# frame-ancestors 'none' — nobody embeds us; it also supersedes X-Frame-Options.
+		# -------------------------------------------------------------------------
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.platform.openai.com; frame-src https://cdn.platform.openai.com; connect-src 'self' https://api.openai.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+	}
+
+	# Vite emits content-hashed filenames, so these can be cached forever. Matches
+	# both a root-mounted and a /static-mounted bundle; whichever the app does not
+	# use simply never matches.
+	@immutable path /assets/* /static/assets/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	# ---------------------------------------------------------------------------
+	# One upstream for everything: the SPA, /api, /login and /chatkit.
+	# Same-origin is not a convenience here — the ChatKit fetch carries the session
+	# cookie, and a cross-origin setup would need CORS plus SameSite=None.
+	# ---------------------------------------------------------------------------
+	reverse_proxy app:8000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP {remote_host}
+
+		# flush_interval is deliberately NOT set. Caddy already flushes immediately
+		# when the response Content-Type is text/event-stream, and `flush_interval -1`
+		# additionally "does not cancel the request to the backend even if the client
+		# disconnects early" — which would break ChatKit's cancel (a pure client-side
+		# stream abort; the server is never told) and keep burning OpenAI tokens after
+		# the user hits stop.
+
+		# No active health checks either: there is one upstream, and Docker's own
+		# healthcheck plus depends_on already gate it. Marking it down here would only
+		# turn a recoverable blip into an immediate 502.
+
+		transport http {
+			dial_timeout 10s
+
+			# Time to the FIRST response header from the app. The endpoint contract is
+			# that it answers 200 + text/event-stream immediately and reports failures
+			# as in-stream error events, so this should never be approached — it is a
+			# backstop against a wedged worker, not a stream timeout.
+			# Go's HTTP transport imposes no timeout on reading the response BODY, so
+			# nothing on this side can cut a 60-second stream.
+			response_header_timeout 60s
+
+			# Slightly under uvicorn's --timeout-keep-alive=75 so Caddy is the one that
+			# retires an idle upstream connection, instead of racing uvicorn into a
+			# half-closed socket.
+			keepalive 70s
+			keepalive_idle_conns 32
+		}
+	}
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 720h
+		}
+		format json
+	}
+}
