@@ -463,10 +463,14 @@ async def run_spike() -> int:
             f"{len(thoughts)} thought event(s); needs summary='auto'",
         ),
         (
-            "a REJECTED terminal tool produced another model turn",
-            bool(rejected) and bool(accepted),
+            # Observational, NOT a gate: this can only fire if the model spontaneously emits
+            # a bad code, which it usually does not. Phase 2 forces the rejection and gates
+            # on it deterministically. A FAIL here would mean "the model got it right", which
+            # is not a defect — so the pass condition is simply "no rejection was left hanging".
+            "repair path (opportunistic; phase 2 is the real gate)",
+            not rejected or bool(accepted),
             f"rejected={[c.error for c in rejected]} accepted={len(accepted)} "
-            f"repairs_counted={len(rejected)}",
+            + ("(model was right first time — see phase 2)" if not rejected else ""),
         ),
         (
             "a visible item was produced (terminal tools are total)",
@@ -479,9 +483,9 @@ async def run_spike() -> int:
             f"turns={turns} input_tokens={in_tokens} output_tokens={out_tokens}",
         ),
         (
-            "the repair loop cost an extra model turn",
+            "multi-turn tool loop ran (>1 model turn)",
             turns >= 2,
-            f"current_turn={turns} (a dead run after the rejection would stop at 1-2)",
+            f"current_turn={turns}",
         ),
         (
             "provenance ledger recorded evidence",
@@ -513,5 +517,84 @@ async def run_spike() -> int:
     return 1 if failures else 0
 
 
+async def run_forced_rejection() -> int:
+    """Phase 2 — prove architecture decision D13 with a DETERMINISTIC rejection.
+
+    Phase 1 can only observe the repair path if the model happens to get it wrong, which it
+    usually does not. So we force `TurnLedger.require` to raise exactly once, which is what a
+    real stale-carry-over hit looks like from inside `emit_classification`.
+
+    What is under test: `stop_at_tool_names` matches on the tool NAME, not the tool RESULT
+    (verified in agents/run_internal/turn_resolution.py), so it would end the run even on a
+    rejected emit. `finalize_on_terminal_tool` inspects the Ack instead. If this phase fails,
+    the prompt's promise that the model may correct itself is a lie and D13 needs rework.
+    """
+    from app.agent.provenance import ProvenanceError, TurnLedger
+
+    original_require = TurnLedger.require
+    fired = {"n": 0}
+
+    def flaky_require(self, code):  # type: ignore[no-untyped-def]
+        evidence = original_require(self, code)
+        if fired["n"] == 0:
+            fired["n"] += 1
+            raise ProvenanceError(f"FORCED TEST REJECTION for {code!r} (spike phase 2)")
+        return evidence
+
+    TurnLedger.require = flaky_require  # type: ignore[method-assign]
+    try:
+        store = MemoryStore()
+        server = ClassifierServer(store, SpikeTariff())
+        context = RequestContext(user_id=1, request_id="spike-m0-reject", locale="uk")
+        thread = ThreadMetadata(
+            id=store.generate_thread_id(context), created_at=datetime.now(), status=ActiveStatus()
+        )
+        await store.save_thread(thread, context)
+        message = UserMessageItem(
+            id=store.generate_item_id("message", thread, context),
+            thread_id=thread.id,
+            created_at=datetime.now(),
+            content=[UserMessageTextContent(text=PROMPT)],
+            inference_options=InferenceOptions(),
+        )
+        await store.add_thread_item(thread.id, message, context)
+
+        answered = False
+        async for event in server.respond(thread, message, context):
+            kind = _event_kind(event)
+            if kind[0] == "thread.item.done":
+                await store.add_thread_item(thread.id, event.item, context)
+                if kind[1] == "assistant_message":
+                    answered = True
+    finally:
+        TurnLedger.require = original_require  # type: ignore[method-assign]
+
+    ok = fired["n"] == 1 and answered
+    print()
+    print("=" * 110)
+    print("PHASE 2 — forced terminal-tool rejection (architecture D13)")
+    print("=" * 110)
+    verdict_fired = "PASS" if fired["n"] == 1 else "FAIL"
+    print(f"{'forced rejection fired'.ljust(54)}  {verdict_fired:<6}  n={fired['n']}")
+    print(f"{'model repaired and still answered'.ljust(54)}  {'PASS' if answered else 'FAIL':<6}  "
+          f"assistant_message={answered}")
+    print("=" * 110)
+    print(
+        "D13 verdict: "
+        + (
+            "a rejected terminal tool did NOT kill the run."
+            if ok
+            else "REJECTION KILLED THE RUN — D13 needs rework."
+        )
+    )
+    return 0 if ok else 1
+
+
+async def main() -> int:
+    rc = await run_spike()
+    rc |= await run_forced_rejection()
+    return rc
+
+
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(run_spike()))
+    raise SystemExit(asyncio.run(main()))
