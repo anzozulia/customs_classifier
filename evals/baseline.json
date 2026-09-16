@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "comment": "Recorded from a real run. Update it deliberately, in the same commit as the change that moved the numbers, and say why in the commit message.",
+  "meta": {
+    "generated_at": "2026-09-16T17:08:08+00:00",
+    "model": "gpt-5.6-terra",
+    "prompt_version": "p2.2026-09-16",
+    "prompt_sha256": "3aa3ad058ed383863814185527bffd36ba9fe4e9eaae3245b5651141c092279e",
+    "dataset_sha256": "5a113fc09ac05028afbd6ed1884a95133b65e7827e61a87d74d5ffb11a38dee3",
+    "cases_path": "/Users/anzozulia/Desktop/edu/classifier_v2/uktzed-v2/evals/golden",
+    "tag": null,
+    "concurrency": 6
+  },
+  "case_ids": [
+    "adv-rubber-boots",
+    "adv-plastic-flowers",
+    "adv-steel-pot",
+    "adv-nonterminal-3919",
+    "adv-nonterminal-8471",
+    "adv-two-products",
+    "beh-vague-terse",
+    "beh-vague-single-word",
+    "beh-conv-what-is-uktzed",
+    "beh-conv-code-digits",
+    "beh-dim-bottle-small",
+    "beh-dim-bottle-large",
+    "beh-dim-moto-400",
+    "beh-dim-moto-650",
+    "cons-leather-belt",
+    "cons-cotton-tshirt",
+    "cons-running-shoes",
+    "cons-hard-hat",
+    "cons-silver-ring",
+    "cons-sunglasses",
+    "cons-digital-watch",
+    "cons-toothbrush",
+    "cons-gas-lighter",
+    "cons-antique-sculpture",
+    "food-grated-cheese",
+    "food-black-tea-bags",
+    "food-broken-rice",
+    "food-olive-oil-extra",
+    "food-alcohol-free-beer",
+    "food-malt-whisky",
+    "food-vermouth-1l",
+    "mach-laptop",
+    "mach-vacuum-cleaner",
+    "mach-li-ion-battery",
+    "mach-fibre-connector",
+    "mach-ecg",
+    "mach-micrometer",
+    "mach-moto-tyre",
+    "mach-electric-car",
+    "mat-white-cement",
+    "mat-toilet-soap",
+    "mat-lipstick",
+    "mat-wood-pellets",
+    "mat-bamboo-chopsticks",
+    "mat-wooden-hanger",
+    "mat-a4-paper",
+    "mat-clay-brick",
+    "v1-iphone-15",
+    "v1-geotex-model",
+    "v1-geotex-described",
+    "v1-ruger-model",
+    "v1-ruger-described",
+    "live-plastics-film",
+    "live-led-lamp",
+    "live-vague-shchos"
+  ],
+  "metrics": {
+    "exact_code": {
+      "hits": 43,
+      "total": 43,
+      "rate": 1.0
+    },
+    "heading_accuracy": {
+      "hits": 44,
+      "total": 44,
+      "rate": 1.0
+    },
+    "chapter_accuracy": {
+      "hits": 44,
+      "total": 44,
+      "rate": 1.0
+    },
+    "answer_rate": {
+      "hits": 44,
+      "total": 45,
+      "rate": 0.9777777777777777
+    },
+    "outcome_match": {
+      "hits": 53,
+      "total": 55,
+      "rate": 0.9636363636363636
+    },
+    "over_confidence": {
+      "hits": 1,
+      "total": 8,
+      "rate": 0.125
+    },
+    "missed_classification": {
+      "hits": 1,
+      "total": 45,
+      "rate": 0.022222222222222223
+    },
+    "groundedness": {
+      "hits": 45,
+      "total": 45,
+      "rate": 1.0
+    },
+    "error_rate": {
+      "hits": 0,
+      "total": 55,
+      "rate": 0.0
+    }
+  },
+  "efficiency": {
+    "turns": {
+      "n": 55,
+      "mean": 2.8727272727272726,
+      "p50": 3.0,
+      "p90": 3.0
+    },
+    "tool_calls": {
+      "n": 55,
+      "mean": 2.963636363636364,
+      "p50": 3.0,
+      "p90": 4.0
+    },
+    "latency_ms": {
+      "n": 55,
+      "mean": 10451.727272727272,
+      "p50": 10152.0,
+      "p90": 15071.0
+    },
+    "cost_usd": {
+      "n": 55,
+      "total": "2.295187",
+      "mean": "0.041731",
+      "p50": "0.040573",
+      "p90": "0.048041"
+    }
+  },
+  "tolerance": {
+    "cases": 1.0,
+    "groundedness_floor": 1.0,
+    "rule": "A higher-is-better metric regresses only when it drops by MORE than one case's worth of rate, measured on the smaller of the two denominators; one case flipping on a 40-case set is noise (binomial SE at n=40, p=0.85 is ~2.3 cases). over_confidence is lower-is-better and uses the same tolerance in the other direction. groundedness has no tolerance: below 1.0 fails with or without a baseline, because the terminal-tool gate is supposed to make it impossible."
+  }
+}

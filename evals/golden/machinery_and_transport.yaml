@@ -1,0 +1,100 @@
+# Theme: sections XVI-XVIII — machinery and electrical equipment, vehicles, instruments.
+# Plus one rubber article (4011) that belongs with the vehicles it is fitted to.
+#
+# This is where v1's traffic actually was, and where the tariff punishes a guess hardest:
+# groups 84, 85 and 90 split on wattage, mass, voltage and litres, and the neighbouring
+# leaves are often the same product with one number changed.
+#
+# Tariff-derived; see the "Honest limits" section of evals/README.md.
+#
+# Schema: see evals/README.md. Verified by evals/build_golden.py.
+
+- id: mach-laptop
+  input: "Ноутбук з процесором, клавіатурою та дисплеєм, маса 1,8 кг"
+  expect_outcome: result
+  expect_code: "8471300000"
+  rationale: >-
+    8471 30 00 00 states its own test: portable, not more than 10 kg, and containing at
+    least a CPU, a keyboard and a display. All three facts are in the input. A desktop
+    that failed the mass test would fall to 8471 41 or 8471 49 instead.
+  source: tariff-derived
+  tags: [electronics, dimension-rule]
+
+- id: mach-vacuum-cleaner
+  input: "Пилосос побутовий потужністю 1 200 Вт з мішком для збору пилу об’ємом 3 л"
+  expect_outcome: result
+  expect_code: "8508110000"
+  rationale: >-
+    8508 11 is defined by two thresholds at once — not more than 1 500 W AND a dust
+    receptacle of not more than 20 l — and the input clears both. Cross either and the
+    goods drop to the residual 8508 19; this is the clearest two-number leaf in group 85.
+  source: tariff-derived
+  tags: [electronics, dimension-rule]
+
+- id: mach-li-ion-battery
+  input: "Акумулятор літій-іонний перезаряджуваний для електроінструменту, 18 В, 4 А·год"
+  expect_outcome: result
+  expect_code: "8507600000"
+  rationale: >-
+    8507 is rechargeable accumulators and splits purely on chemistry; 8507 60 is
+    "літій-іонні", a single terminal leaf. The neighbour to avoid is 8506, which takes
+    primary (non-rechargeable) cells — "перезаряджуваний" is what keeps it out.
+  source: tariff-derived
+  tags: [electronics]
+
+- id: mach-fibre-connector
+  input: "З’єднувач (конектор) для оптичного волокна, одномодовий, для напруги до 1 000 В"
+  expect_outcome: result
+  expect_code: "8536700000"
+  rationale: >-
+    8536 70 00 00 is carved out of an otherwise electrical heading specifically for
+    "з’єднувальні пристрої для оптичних волокон, волоконно-оптичних джгутів або кабелів".
+    Without that leaf an optical connector would be pushed into the residual 8536 69/90,
+    which is the mistake this case checks for.
+  source: tariff-derived
+  tags: [electronics]
+
+- id: mach-ecg
+  input: "Електрокардіограф багатоканальний для клінічної діагностики"
+  expect_outcome: result
+  expect_code: "9018110000"
+  rationale: >-
+    9018 covers instruments for medical use, and 9018 11 is the first leaf,
+    "електрокардіографи", named outright. Group 90 rather than group 85: the medical
+    purpose overrides the fact that the device is electrical apparatus.
+  source: tariff-derived
+  tags: [instruments, name-vs-material]
+
+- id: mach-micrometer
+  input: "Мікрометр механічний з межею вимірювання 0-25 мм, ціна поділки 0,01 мм"
+  expect_outcome: result
+  expect_code: "9017300000"
+  rationale: >-
+    9017 30 00 00 names "мікрометри, кронциркулі та калібри" and is terminal with no
+    further split, so neither the measuring range nor the graduation affects the answer.
+    9031 would take purpose-built measuring machines; a hand micrometer is not one.
+  source: tariff-derived
+  tags: [instruments]
+
+- id: mach-moto-tyre
+  input: "Шина пневматична гумова нова для мотоцикла, розмір 120/70 R17"
+  expect_outcome: result
+  expect_code: "4011400000"
+  rationale: >-
+    4011 is new pneumatic tyres of rubber and splits entirely by the vehicle they are
+    fitted to; 4011 40 is "для мотоциклів", a single terminal leaf. "Нова" keeps the goods
+    out of 4012 (retreaded or used). The size designation is noise here.
+  source: tariff-derived
+  tags: [vehicles]
+
+- id: mach-electric-car
+  input: "Новий легковий автомобіль, що приводиться в рух виключно електричним двигуном, 5 місць"
+  expect_outcome: result
+  expect_code: "8703801010"
+  rationale: >-
+    8703 80 is the battery-electric branch of passenger cars, split into нові / що
+    використовувалися and then, in the Ukrainian national digits, into "оснащені виключно
+    електричними двигунами" versus range-extender and other layouts. "Новий" and
+    "виключно" are both load-bearing; drop either and the answer changes.
+  source: tariff-derived
+  tags: [vehicles]

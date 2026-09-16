@@ -1,0 +1,82 @@
+# Theme: the three products v1 named inside its own system prompt.
+#
+# v1 told the model about "iPhone 15", "Geotex GTX-R3i" and "Ruger AR-556 MPR" and then
+# never measured what it did with them. Two of the three are bare model designations, and
+# a bare model designation is NOT a product description: nothing in it states the material,
+# the construction or the measurements the tariff splits on. So each of those two appears
+# twice — once as the bare name v1 used, with the expectation the name can actually carry,
+# and once rewritten with the facts a classifier needs, at full 10-digit precision.
+#
+# No code here is invented. Where the name cannot defend a 10-digit answer the case
+# expects a heading or an outcome instead.
+#
+# Schema: see evals/README.md. Verified by evals/build_golden.py.
+
+- id: v1-iphone-15
+  input: "iPhone 15"
+  expect_outcome: result
+  expect_code: "8517130000"
+  rationale: >-
+    The one bare model name here that IS classifiable: "iPhone" denotes a cellular
+    telephone with a touchscreen, and since the 2022 HS revision 8517 13 is a leaf that
+    says "смартфони" in so many words. No measurement, material or capacity affects the
+    split, so the missing detail costs nothing. 8517 14 takes the other cellular phones
+    and is excluded by the word "smartphone" itself.
+  source: v1-prompt-example
+  tags: [electronics, brand-name]
+
+- id: v1-geotex-model
+  input: "Geotex GTX-R3i"
+  expect_outcome: clarification
+  rationale: >-
+    A trade name plus a part number, and nothing else. Heading 5603 splits on the fibre
+    (filament vs staple) and then on grammage in four bands, and 5911 takes the same
+    fabric when it is made up for a technical use — none of which a model number states.
+    Emitting a code here means guessing two independent splits at once, so the correct
+    turn is to ask for the construction and the г/м².
+  source: v1-prompt-example
+  tags: [textiles, brand-name, vague-input]
+
+- id: v1-geotex-described
+  input: "Нетканий голкопробивний геотекстиль з поліпропілену, поверхнева щільність 200 г/м², без покриття"
+  expect_outcome: clarification
+  rationale: >-
+    Scored at heading level on purpose. The description fixes 5603 (нетканий матеріал) and
+    the 150-г/м²-plus band, but the 6-digit split between 5603 14 (з ниток синтетичних) and
+    5603 94 (інші) turns on filament vs staple fibre, which "голкопробивний" does not
+    settle; and both candidate leaves are flagged path_is_ambiguous in this dataset, i.e.
+    they share their full_path with a sibling. A 10-digit expectation would be a coin flip.
+    ADJUDICATED 2026-09-16: the first live eval run flipped this case. The model navigated to
+    the right heading and asked for the one missing fact instead of committing. Since this
+    rationale itself says the description does not settle the split, expecting a committed
+    code was the bug — a golden set that rewards guessing an unstated attribute trains the
+    system into exactly the confident-wrong-code failure it exists to prevent. This
+    case therefore asserts only that the system ASKS rather than guesses. Nothing here
+    pins the heading — a clarification issues no code — but a model that degenerates into
+    asking about everything is caught by answer_rate, which is gated alongside accuracy.
+  source: v1-prompt-example
+  tags: [textiles, coarse-expectation, ambiguous-leaf]
+
+- id: v1-ruger-model
+  input: "Ruger AR-556 MPR"
+  expect_outcome: result
+  expect_heading: "9303"
+  rationale: >-
+    Scored at heading level. The name reaches 9303 for anyone who recognises it as a
+    civilian rifle, but 9303 30 00 splits into однозарядна / напівавтоматична / інша, and
+    that split rests on knowing the firearm rather than on anything in the tariff text.
+    The descriptive twin v1-ruger-described is where the 10-digit answer is scored.
+  source: v1-prompt-example
+  tags: [weapons, brand-name, coarse-expectation]
+
+- id: v1-ruger-described
+  input: "Гвинтівка нарізна напівавтоматична калібру 5,56 мм для спортивної стрільби по мішенях"
+  expect_outcome: result
+  expect_code: "9303300020"
+  rationale: >-
+    The same product with the three facts the tariff asks for. "Нарізна ... спортивна"
+    selects 9303 30 00 over the smooth-bore 9303 20, and "напівавтоматична" is the literal
+    text of the 9303 30 00 20 leaf, so the однозарядна and residual "інша" siblings are
+    both excluded. Group 93 is not group 87 or 84: this is a weapon, not a machine.
+  source: v1-prompt-example
+  tags: [weapons]

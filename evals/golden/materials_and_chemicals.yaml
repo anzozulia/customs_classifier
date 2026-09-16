@@ -1,0 +1,98 @@
+# Theme: sections V-X and XIII — mineral products, chemicals, wood, paper and ceramics.
+#
+# Tariff-derived, same method and the same caveat as food_and_agriculture.yaml: each leaf
+# was chosen first and the description written from its full_path, which makes the
+# vocabulary friendlier than a real user's would be.
+#
+# Schema: see evals/README.md. Verified by evals/build_golden.py.
+
+- id: mat-white-cement
+  input: "Цемент білий портландцемент, незабарвлений, у мішках по 25 кг"
+  expect_outcome: result
+  expect_code: "2523210000"
+  rationale: >-
+    2523 covers hydraulic cements, and 2523 21 is the leaf "цемент білий, штучно
+    забарвлений або незабарвлений" — white cement is separated from ordinary portland
+    cement before any question of colouring arises. 2523 10 (клінкери) is excluded because
+    this is finished cement, not clinker.
+  source: tariff-derived
+  tags: [construction, chemicals]
+
+- id: mat-toilet-soap
+  input: "Мило туалетне тверде у брусках для гігієнічних цілей"
+  expect_outcome: result
+  expect_code: "3401110000"
+  rationale: >-
+    3401 splits first on physical form — bars, cakes and moulded shapes — and then on use:
+    3401 11 is "для гігієнічних цілей". Liquid hand wash would be 3401 30 and a bar of
+    industrial soap 3401 19, so both the form and the purpose have to be read.
+  source: tariff-derived
+  tags: [chemicals]
+
+- id: mat-lipstick
+  input: "Помада губна декоративна у футлярі"
+  expect_outcome: result
+  expect_code: "3304100000"
+  rationale: >-
+    3304 is beauty and make-up preparations, and its first leaf 3304 10 is "засоби для
+    макіяжу губ" — the part of the face decides the subheading. A medicated lip
+    preparation would leave 3304 for group 30 entirely, which "декоративна" rules out.
+  source: tariff-derived
+  tags: [chemicals]
+
+- id: mat-wood-pellets
+  input: "Паливні гранули (пелети) з пресованої тирси хвойних порід, діаметр 6 мм"
+  expect_outcome: result
+  expect_code: "4401310000"
+  rationale: >-
+    4401 takes fuel wood and wood waste, agglomerated or not, and the agglomerated forms
+    are split by shape: 4401 31 "деревні гранули" against 4401 32 "деревні брикети".
+    Pressing the sawdust into pellets is what moves the goods off the loose-sawdust leaves.
+  source: tariff-derived
+  tags: [wood]
+
+- id: mat-bamboo-chopsticks
+  input: "Палички для їжі з бамбука, одноразові, у паперовій упаковці"
+  expect_outcome: result
+  expect_code: "4419120000"
+  rationale: >-
+    4419 is tableware and kitchenware of wood — bamboo counts as wood for group 44 — and
+    4419 12 is the leaf "палочки для їжі" in the bamboo branch of the heading. Note the
+    snapshot's full_path does not repeat the word bamboo at this level, which is why the
+    input states it.
+  source: tariff-derived
+  tags: [wood]
+
+- id: mat-wooden-hanger
+  input: "Вішалка-плічка для одягу дерев’яна, з поперечиною для штанів"
+  expect_outcome: result
+  expect_code: "4421100000"
+  rationale: >-
+    4421 is the residual heading for other articles of wood, but 4421 10 inside it is not
+    residual at all: it names "вішалки для одягу" explicitly. A plastic hanger would be
+    3924/3926 and a steel one 7326, so the material carries the group.
+  source: tariff-derived
+  tags: [wood]
+
+- id: mat-a4-paper
+  input: "Папір офісний білий для друку, некрейдований, аркуші 297 × 210 мм, 80 г/м²"
+  expect_outcome: result
+  expect_code: "4802562000"
+  rationale: >-
+    Three numeric gates in sequence: uncoated graphic paper (4802), 40-150 г/м² in sheets
+    whose sides do not exceed 435 × 297 mm (4802 56), then the exact A4 leaf
+    4802 56 20 "з розміром однієї сторони 297 мм та іншої сторони 210 мм". Anything else
+    in that band falls to the residual 4802 56 80.
+  source: tariff-derived
+  tags: [paper, dimension-rule]
+
+- id: mat-clay-brick
+  input: "Цегла будівельна керамічна повнотіла червона для кладки стін"
+  expect_outcome: result
+  expect_code: "6904100000"
+  rationale: >-
+    6904 is non-refractory ceramic building brick, and 6904 10 is the leaf "цегла
+    будівельна". The neighbour to keep out is 6902 (цегла вогнетривка), which applies only
+    to refractory brick; a wall brick is not refractory.
+  source: tariff-derived
+  tags: [construction, glass-ceramics]

@@ -1,0 +1,92 @@
+# Theme: sections I-IV — live animals and animal products, vegetable products, fats and
+# oils, prepared foodstuffs and beverages.
+#
+# Every case here is tariff-derived: a terminal leaf was picked first, and the Ukrainian
+# description was written FROM its full_path. That makes these cases easier than real user
+# input, because the vocabulary already matches the tariff's own wording. They measure
+# whether the navigation reaches the right leaf, not whether the system can bridge
+# consumer language to tariff language. See the "Honest limits" section of evals/README.md.
+#
+# Leaves whose description is the bare residual "інші" were excluded on purpose: 2,473 of
+# the 10,490 terminals carry it, and a human could not classify into one from a product
+# description either.
+#
+# Schema: see evals/README.md. Verified by evals/build_golden.py.
+
+- id: food-grated-cheese
+  input: "Сир твердий тертий, фасований у пакети по 100 г"
+  expect_outcome: result
+  expect_code: "0406200000"
+  rationale: >-
+    0406 covers cheese of all kinds, and its first split is by physical form rather than
+    by variety: 0406 20 is "сири терті або в порошку, усіх сортів". Grating decides the
+    subheading, so the type of cheese never has to be established.
+  source: tariff-derived
+  tags: [food]
+
+- id: food-black-tea-bags
+  input: "Чай чорний ферментований в одноразових фільтр-пакетах, коробка 100 г"
+  expect_outcome: result
+  expect_code: "0902300010"
+  rationale: >-
+    Three splits in a row, all stated: fermented (чорний) over green, immediate packings
+    of not more than 3 kg (100 g), and the Ukrainian national 10-digit split for
+    "в одноразових фільтр-пакетах". The green-tea twin 0902 10 00 10 has the same last
+    step, which is why the fermentation has to be read.
+  source: tariff-derived
+  tags: [food]
+
+- id: food-broken-rice
+  input: "Рис битий (січка) насипом, для промислової переробки"
+  expect_outcome: result
+  expect_code: "1006400000"
+  rationale: >-
+    1006 splits on the degree of milling — in husk, husked, semi- or wholly milled — and
+    then sets broken rice apart entirely in 1006 40 00 00, a single leaf with no further
+    split. "Битий" is the whole decision.
+  source: tariff-derived
+  tags: [food]
+
+- id: food-olive-oil-extra
+  input: "Олія оливкова першого холодного віджиму (extra virgin), нерафінована, у пляшках 1 л"
+  expect_outcome: result
+  expect_code: "1509200000"
+  rationale: >-
+    1509 is olive oil that has not been chemically modified, and 1509 20 is the leaf
+    "оливкова олія екстра-класу". The неочищена/рафінована distinction separates it from
+    1509 90; 1510 would take oils obtained from olive residues, which this is not.
+  source: tariff-derived
+  tags: [food]
+
+- id: food-alcohol-free-beer
+  input: "Пиво безалкогольне світле у бляшанках 0,33 л"
+  expect_outcome: result
+  expect_code: "2202910000"
+  rationale: >-
+    Beer is 2203 only while it contains alcohol; without it the goods fall to 2202, whose
+    leaf 2202 91 is literally "безалкогольне пиво". The word "пиво" is the trap and the
+    word "безалкогольне" is the answer.
+  source: tariff-derived
+  tags: [beverages, name-vs-material]
+
+- id: food-malt-whisky
+  input: "Віскі шотландське солодове, 40 об.%, пляшка 0,7 л"
+  expect_outcome: result
+  expect_code: "2208303000"
+  rationale: >-
+    Under 2208 30 (віскі) the split is by kind, and "віскі солодове" is the text of
+    2208 30 30. Bourbon and blended whisky sit in neighbouring leaves, so "солодове" is
+    what decides; neither the strength nor the bottle size affects this branch.
+  source: tariff-derived
+  tags: [beverages]
+
+- id: food-vermouth-1l
+  input: "Вермут білий з фактичною концентрацією спирту 15 об.%, пляшка 1 л"
+  expect_outcome: result
+  expect_code: "2205101000"
+  rationale: >-
+    2205 splits twice and both cuts are numeric: container of 2 l or less (1 l), then
+    strength of 18 % vol or less (15 %). Both have to be read to reach 2205 10 10 — get
+    either wrong and you land on 2205 10 90 or 2205 90 10.
+  source: tariff-derived
+  tags: [beverages, dimension-rule]
