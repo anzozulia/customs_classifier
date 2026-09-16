@@ -1,0 +1,39 @@
+# The Dockerfile COPYs explicit paths, so this file is mostly about build-context
+# size and about making it impossible to ship a secret by accident.
+
+# Secrets. Never in the build context, never in a layer.
+.env
+.env.*
+!.env.example
+
+# VCS and CI
+.git
+.gitignore
+.github
+
+# Python
+**/__pycache__
+**/*.py[cod]
+*.egg-info
+.venv
+venv
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Node — node_modules is reinstalled by `npm ci` inside the frontend stage, and
+# dist is rebuilt there. Copying either in would be slower AND wrong (host-built
+# native modules do not run on alpine).
+web/node_modules
+web/dist
+
+# Local state / editor noise
+docker_data
+**/.DS_Store
+*.swp
+
+# Not needed at runtime. They are not COPYed either; this just shrinks the context.
+tests
+evals
+scripts
+README.md

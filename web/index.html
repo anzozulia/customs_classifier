@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="uk" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Класифікатор УКТЗЕД</title>
+
+    <!--
+      MANDATORY, and it MUST be this exact URL, loaded as a classic <script src>.
+
+      The ChatKit runtime is NOT in the npm package: `@openai/chatkit` ships type
+      declarations only (its `exports` map has a "types" condition and nothing else), so
+      `import '@openai/chatkit'` type-checks and then dies at bundle time. The bundle here
+      reads `document.currentScript.src` at module-evaluation time to derive the URL of the
+      iframe it mounts, which is why re-hosting this file under your own domain does not
+      work and is explicitly unsupported.
+
+      The URL is unversioned (`cache-control: max-age=300`) and auto-updates; npm pins the
+      types you compile against, not the runtime. See web/README.md, "Known constraints".
+
+      `async` is safe: @openai/chatkit-react awaits customElements.whenDefined() before it
+      calls setOptions.
+    -->
+    <script src="https://cdn.platform.openai.com/deployments/chatkit/chatkit.js" async></script>
+
+    <!--
+      Deliberately absent: any build-time injection of the ChatKit domain key. Vite inlines
+      import.meta.env.VITE_* into the bundle, so a key baked in here would make "point this
+      at a different domain" a rebuild. The key is fetched at runtime from GET /api/config.
+    -->
+  </head>
+  <body class="h-full">
+    <div id="root" class="h-full"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

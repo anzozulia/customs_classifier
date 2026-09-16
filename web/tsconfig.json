@@ -1,0 +1,32 @@
+{
+  // One tsconfig for the whole shell. The Vite react-ts template splits this into three files
+  // (root + app + node) so that `tsc -b` can emit separate build info; we never emit anything
+  // (`noEmit` + Vite does the transform), so the split would buy nothing.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "useDefineForClassFields": true,
+    "types": ["node", "vite/client"],
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+
+    // Load-bearing, not cosmetic: `@openai/chatkit` is a types-only package whose `exports`
+    // map has no "import" condition, so a VALUE import type-checks fine and then fails at
+    // bundle time with ERR_PACKAGE_PATH_NOT_EXPORTED. `verbatimModuleSyntax` forces every
+    // import from it to be spelled `import type`, which is erased before the bundler sees it.
+    "verbatimModuleSyntax": true,
+
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src", "vite.config.ts"]
+}

@@ -1,0 +1,48 @@
+[project]
+name = "uktzed-v2"
+version = "0.1.0"
+description = "UKTZED product classifier — web chat, OpenAI Agents SDK + ChatKit"
+requires-python = ">=3.13"
+
+dependencies = [
+  # ChatKit backend SDK. NOT on PyPI — the `chatkit` name there is a reserved 0.0.1 stub.
+  # Pinned to a tag; it declares openai-agents>=0.3.2 itself.
+  "openai-chatkit @ git+https://github.com/openai/chatkit-python.git@v1.6.5",
+  "openai-agents==0.22.2",
+  "fastapi==0.141.1",
+  "uvicorn[standard]==0.53.0",
+  "asyncpg==0.31.0",
+  "alembic==1.20.0",
+  "psycopg[binary]==3.3.5",              # SYNC driver for alembic only; runtime is asyncpg
+  "sqlalchemy==2.0.54",            # alembic's migration DDL only; runtime queries are asyncpg
+  "pydantic==2.13.5",
+  "pydantic-settings==2.15.0",
+  "itsdangerous==2.2.0",           # SessionMiddleware cookie signing
+  "argon2-cffi==25.1.0",
+  "typer==0.27.2",
+  "python-multipart==0.0.32",
+  "httpx==0.28.1",
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff>=0.14.5", "pyright>=1.1.407"]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+# Flat layout with sibling dirs (web/, data/, evals/, migrations/) — tell setuptools
+# that only `app` is the importable package, or discovery refuses to build.
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
