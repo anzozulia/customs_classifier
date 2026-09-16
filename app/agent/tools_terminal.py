@@ -37,11 +37,13 @@ streams one on the give-up path.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime
 from typing import Any, Literal
 
 from agents import function_tool
+from chatkit.actions import ActionConfig
 from chatkit.types import (
     AssistantMessageContent,
     AssistantMessageItem,
@@ -52,6 +54,7 @@ from chatkit.types import (
     StructuredInputMultipleChoiceOption,
     ThreadItemDoneEvent,
 )
+from chatkit.widgets import Button, Card
 from pydantic import Field
 
 from app.agent import PathStep, UAModel
@@ -71,6 +74,8 @@ __all__ = [
     "stream_assistant_message",
     "summarise_rejection",
 ]
+
+logger = logging.getLogger("uktzed.agent")
 
 _TEN_DIGITS = re.compile(r"^\d{10}$")
 
@@ -408,6 +413,7 @@ async def emit_classification(
         ctx.context,
         _answer_markdown(checked, confidence, rationale, product_summary, path, clean_alternatives),
     )
+    await _stream_new_classification_button(ctx.context)
 
     ctx.context.outcome = "result"
     ctx.context.emitted_codes = [item.code for item in checked]
@@ -514,3 +520,44 @@ def summarise_rejection(ack: Any) -> str:
         "матеріал, призначення, ступінь обробки."
         + (f"\n\n_Технічна причина:_ {detail}" if detail else "")
     )
+
+# The "one more product" affordance. A classification is a finished unit of work, and the
+# next product is a NEW conversation, not a follow-up turn — v1's users pressed /clear 449
+# times asking for exactly this boundary, 87% of them right after a delivered result.
+#
+# handler="client" means the action never reaches the server: the browser calls
+# control.setThreadId(null) and a fresh thread starts. Nothing to persist, nothing to route.
+#
+# NOTE: constructing named widget classes directly is deprecated in openai-chatkit 1.6.5 in
+# favour of `.widget` template files. We pin 1.6.5 exactly, and a single button does not earn
+# a template file plus its JSON schema. Migrating is the follow-up if the pin ever moves.
+NEW_CLASSIFICATION_ACTION = "new_classification"
+
+
+async def _stream_new_classification_button(agent_ctx: UktzedContext) -> None:
+    """Offer a clean thread for the next product, directly under the answer."""
+    try:
+        await agent_ctx.stream_widget(
+            Card(
+                size="full",
+                padding=2,
+                children=[
+                    Button(
+                        label="Класифікувати наступний товар",
+                        style="secondary",
+                        iconStart="plus",
+                        onClickAction=ActionConfig(
+                            type=NEW_CLASSIFICATION_ACTION,
+                            handler="client",
+                            # Nothing is streamed in response, so do not leave the widget
+                            # sitting in a loading state waiting for a server turn.
+                            loadingBehavior="none",
+                            streaming=False,
+                        ),
+                    )
+                ],
+            )
+        )
+    except Exception:
+        logger.exception("could not stream the new-classification button")
+
