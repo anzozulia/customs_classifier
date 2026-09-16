@@ -19,7 +19,7 @@ type Props = {
 };
 
 const NAV = [
-  { to: "/", label: "Чат", end: true },
+  { to: "/", label: "Класифікатор", end: true },
   { to: "/history", label: "Історія", end: false },
 ];
 
@@ -46,7 +46,19 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
     <div className="flex h-full flex-col">
       <header className="flex-none border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-4 px-4 py-3">
-          <span className="text-sm font-semibold tracking-tight">Класифікатор УКТЗЕД</span>
+          {/* The wordmark and the first nav item now share a word, so they are separated by
+              WEIGHT rather than by wording: «Класифікатор» is de-emphasised here so the eye
+              lands on УКТЗЕД as the product name, while the nav below is uppercase and
+              letter-spaced — a different typographic register, read as chrome, not a title. */}
+          <span className="flex items-baseline gap-1.5 text-sm">
+            <span className="font-normal text-slate-400 dark:text-slate-500">Класифікатор</span>
+            <span className="font-semibold tracking-tight">УКТЗЕД</span>
+          </span>
+
+          <span
+            aria-hidden="true"
+            className="h-5 w-px flex-none bg-slate-200 dark:bg-slate-800"
+          />
 
           <nav className="flex items-center gap-1">
             {NAV.map((item) => (
@@ -56,7 +68,8 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
                 end={item.end}
                 className={({ isActive }) =>
                   [
-                    "rounded-lg px-3 py-1.5 text-sm transition-colors",
+                    "rounded-lg px-3 py-1.5 text-xs font-medium uppercase tracking-wider",
+                    "transition-colors",
                     isActive
                       ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
                       : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
