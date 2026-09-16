@@ -24,7 +24,7 @@ __all__ = [
     "render_system_prompt",
 ]
 
-PROMPT_VERSION = "p1.2026-09-16"
+PROMPT_VERSION = "p2.2026-09-16"
 """Bump on every edit to anything in this package. `tests/test_prompt_version.py` enforces it
 against `TEMPLATE_SHA256`."""
 
