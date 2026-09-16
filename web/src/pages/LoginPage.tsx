@@ -66,9 +66,6 @@ export default function LoginPage({ config }: { config: AppConfig }) {
     <div className="flex h-full items-center justify-center px-4">
       <div className="card w-full max-w-sm p-6">
         <h1 className="text-lg font-semibold tracking-tight">Класифікатор УКТЗЕД</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Облікові записи створює адміністратор — самостійна реєстрація недоступна.
-        </p>
 
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
           <div>

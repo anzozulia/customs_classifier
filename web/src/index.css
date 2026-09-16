@@ -32,6 +32,25 @@
       dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
   }
 
+  /* Header affordances. The theme toggle and sign-out sit next to a plain username, so a
+     full bordered button reads as heavier than either deserves: both are quiet until you
+     reach for them. Same 36px height and the same pill radius so they scan as one group. */
+  .btn-icon {
+    @apply inline-flex h-9 w-9 flex-none items-center justify-center rounded-full
+      text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15
+      dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100
+      dark:focus-visible:ring-slate-100/20;
+  }
+
+  .btn-quiet {
+    @apply inline-flex h-9 flex-none items-center gap-1.5 rounded-full px-3.5 text-sm
+      font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15
+      dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100
+      dark:focus-visible:ring-slate-100/20;
+  }
+
   .field {
     @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
       text-slate-900 outline-none placeholder:text-slate-400

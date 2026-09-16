@@ -68,21 +68,22 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-3">
-            <span className="hidden text-sm text-slate-500 dark:text-slate-400 sm:inline">
+          <div className="ml-auto flex items-center gap-1">
+            <span className="hidden pr-1 text-sm text-slate-500 dark:text-slate-400 sm:inline">
               {config.user.username}
             </span>
             <button
               type="button"
               onClick={onToggleTheme}
-              className="btn-ghost px-2 py-1.5"
+              className="btn-icon"
               aria-label={scheme === "dark" ? "Світла тема" : "Темна тема"}
               title={scheme === "dark" ? "Світла тема" : "Темна тема"}
             >
               {scheme === "dark" ? <SunIcon /> : <MoonIcon />}
             </button>
-            <button type="button" onClick={signOut} className="btn-ghost px-2 py-1.5 text-sm">
-              Вийти
+            <button type="button" onClick={signOut} className="btn-quiet" title="Вийти">
+              <SignOutIcon />
+              <span className="hidden sm:inline">Вийти</span>
             </button>
           </div>
         </div>
@@ -110,6 +111,25 @@ function MoonIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+    </svg>
+  );
+}
+
+function SignOutIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="m16 17 5-5-5-5" />
+      <path d="M21 12H9" />
     </svg>
   );
 }
