@@ -1,4 +1,4 @@
-# ruff: noqa: RUF001, RUF003  -- Ukrainian tariff text below, quoted verbatim from the
+
 # source file; the Cyrillic letters that ruff reads as Latin look-alikes are correct.
 """Invariants of the tariff snapshot, checked against the real JSON.
 
