@@ -179,7 +179,7 @@ class ClassifierServer(ChatKitServer[RequestContext]):
         # shaped by whether persistence worked.
         classification_id = await begin_turn(
             context,
-            input_text=_message_text(input_user_message) or _last_user_text(input_items),
+            input_text=_message_text(input_user_message) or _product_text(input_items),
             thread_id=thread.id,
             model=settings.model,
             prompt_version=PROMPT_VERSION,
@@ -335,26 +335,86 @@ class ClassifierServer(ChatKitServer[RequestContext]):
         raise NotImplementedError("Enable only together with an explicit ownership check")
 
 
-def _last_user_text(input_items: list[Any]) -> str:
-    """The last user text in the model input, whole.
+# ChatKit renders an answered clarification into the model input as SDK boilerplate:
+#
+#   A structured input request was displayed to the user with the following status: answered
+#   <StructuredInput>
+#   - Ці кросівки призначені саме для занять спортом…?: Для занять спортом
+#   </StructuredInput>
+#
+# Verbatim from chatkit/agents.py. It is the right thing to send a MODEL and the wrong thing
+# to store as a product description — it leaked straight into /history until this was added.
+_STRUCTURED_INPUT_OPEN = "<StructuredInput>"
+_STRUCTURED_INPUT_CLOSE = "</StructuredInput>"
+_UNANSWERED = frozenset({"unanswered", "skipped"})
 
-    Also the fallback for `input_text` on the structured-input path: answering a clarification
-    produces no `UserMessageItem` at all, so the only place that turn's input exists is the
-    converted history, where `structured_input_to_input` has already rendered the answer.
+
+def _is_structured_input(text: str) -> bool:
+    return _STRUCTURED_INPUT_OPEN in text
+
+
+def _structured_answers(text: str) -> str:
+    """Pull just the user's answers out of the boilerplate: "Гума або пластмаса; 42".
+
+    Each line is `- {question}: {answer}` and a question may itself contain a colon, so the
+    split is from the RIGHT.
     """
-    for item in reversed(input_items):
+    body = text.split(_STRUCTURED_INPUT_OPEN, 1)[-1].split(_STRUCTURED_INPUT_CLOSE, 1)[0]
+    answers = []
+    for raw in body.splitlines():
+        line = raw.strip()
+        if not line.startswith("- "):
+            continue
+        _, separator, answer = line.rpartition(": ")
+        answer = answer.strip()
+        if separator and answer and answer not in _UNANSWERED:
+            answers.append(answer)
+    return "; ".join(answers)
+
+
+def _user_texts(input_items: list[Any]) -> list[str]:
+    """Every user text in the model input, oldest first."""
+    texts = []
+    for item in input_items:
         if not isinstance(item, dict) or item.get("role") != "user":
             continue
         for part in item.get("content") or []:
             text = (part or {}).get("text") if isinstance(part, dict) else None
-            if text:
-                return text.strip()
-    return ""
+            if text and text.strip():
+                texts.append(text.strip())
+    return texts
+
+
+def _last_user_text(input_items: list[Any]) -> str:
+    """The last user text in the model input, whole."""
+    texts = _user_texts(input_items)
+    return texts[-1] if texts else ""
+
+
+def _product_text(input_items: list[Any]) -> str:
+    """What `/history` should show as the thing being classified.
+
+    A clarification round-trip produces one `classification` row per turn, and answering a
+    question produces no `UserMessageItem` at all — so the naive "last user text" is the
+    ANSWER ("Для занять спортом"), which is meaningless as a register entry. The product is
+    the FIRST ordinary message in the window, and every row of a thread then reads as the same
+    product being progressively resolved, which is what a register of classifications is for.
+    """
+    texts = _user_texts(input_items)
+    for text in texts:
+        if not _is_structured_input(text):
+            return text
+    # Nothing but structured answers in the window: better the answers than the boilerplate.
+    return _structured_answers(texts[-1]) if texts else ""
 
 
 def _title_from(input_items: list[Any]) -> str:
-    """Last user text, trimmed. Cheap, deterministic, and no second model call."""
-    return _last_user_text(input_items)[:60]
+    """The product, trimmed. Cheap, deterministic, and no second model call.
+
+    Uses `_product_text` rather than the last message for the same reason the record does: a
+    thread titled «Для занять спортом» tells the user nothing about which product it was.
+    """
+    return _product_text(input_items)[:60]
 
 
 def _message_text(message: UserMessageItem | None) -> str:

@@ -55,7 +55,8 @@ select = ["E", "F", "W", "B", "I", "UP", "SIM", "RUF"]
 # Ukrainian UI text is pervasive. Without this, ruff RUF001/RUF002 flags Cyrillic letters
 # that look like ASCII in every file that carries user-facing copy.
 allowed-confusables = ["і", "а", "у", "о", "б", "е", "с", "р", "х", "–", "«", "»",
-                       "Н", "І", "А", "О", "В", "Е", "С", "Р", "Х", "К", "М", "Т"]
+                       "Н", "І", "А", "О", "В", "Е", "С", "Р", "Х", "К", "М", "Т",
+                       "З", "У", "Д", "Г", "П", "Б", "Ч", "Я", "Ю", "Ц", "Ш", "Ж"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
