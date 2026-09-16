@@ -1,4 +1,4 @@
-# ruff: noqa: RUF001, RUF002  -- Ukrainian text below. Single-letter Cyrillic words and
+# ruff: noqa: RUF001  -- Ukrainian text below. Single-letter Cyrillic words and
 # the en dash are correct typography here, not Latin look-alikes; pyproject pins ruff's
 # defaults (no allowed-confusables), so the exemption is declared per file.
 """Terminal tools — the two ways a turn can end with an artefact.

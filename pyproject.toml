@@ -42,7 +42,11 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "I", "UP", "SIM", "RUF"]
+# Ukrainian UI text is pervasive. Without this, ruff RUF001/RUF002 flags Cyrillic letters
+# that look like ASCII in every file that carries user-facing copy.
+allowed-confusables = ["і", "а", "у", "о", "б", "е", "с", "р", "х", "–", "«", "»"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["."]
