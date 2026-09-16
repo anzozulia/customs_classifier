@@ -71,10 +71,17 @@ type Props = {
    * every link that sets it comes from another route, so arriving here always remounts.
    */
   threadId?: string | null;
-  onStatusChange: (status: ChatStatus) => void;
+  /** Optional: the shell renders no status chip, but a host that wants one can pass this. */
+  onStatusChange?: (status: ChatStatus) => void;
 };
 
-export default function ChatKitPanel({ config, scheme, threadId, onStatusChange }: Props) {
+export default function ChatKitPanel({
+  config,
+  scheme,
+  threadId,
+  onStatusChange,
+}: Props) {
+  const notifyStatus = onStatusChange ?? (() => {});
   // Frozen at mount on purpose. `initialThread` is read once by the frame; feeding it a
   // changing value would be noise. A ?thread= in the URL wins over the last thread used.
   const [initialThread] = useState<string | null>(() => threadId ?? readStoredThread());
@@ -137,15 +144,15 @@ export default function ChatKitPanel({ config, scheme, threadId, onStatusChange 
     threadItemActions: { feedback: false, retry: true },
     disclaimer: { text: "Довідкова класифікація. Остаточне рішення ухвалює митниця." },
 
-    onReady: () => onStatusChange("ready"),
-    onResponseStart: () => onStatusChange("streaming"),
-    onResponseEnd: () => onStatusChange("ready"),
+    onReady: () => notifyStatus("ready"),
+    onResponseStart: () => notifyStatus("streaming"),
+    onResponseEnd: () => notifyStatus("ready"),
     onThreadChange: ({ threadId: current }) => storeThread(current),
     onError: ({ error }) => {
       // Reaches us only for the ten allowed error names (StreamError, FatalAppError, …).
       // HTTP and network failures are invisible here by design — see chatFetch above.
       console.error("[chatkit]", error.name, error.message);
-      onStatusChange("error");
+      notifyStatus("error");
     },
   });
 
