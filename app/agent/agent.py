@@ -17,6 +17,7 @@ The callable sees the `Ack` and can send the model back round.
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from agents import (
@@ -26,6 +27,7 @@ from agents import (
     RunContextWrapper,
     ToolsToFinalOutputResult,
     WebSearchTool,
+    set_default_openai_key,
     set_tracing_disabled,
 )
 from openai.types.shared import Reasoning
@@ -57,6 +59,26 @@ AGENT_NAME = "uktzed-classifier"
 # consumers and every customer's product description in them. `ModelSettings(store=False)`
 # below is a separate switch: tracing controls the dashboard, `store` controls retention.
 set_tracing_disabled(True)
+
+
+def _configure_openai() -> None:
+    """Hand the API key from Settings to the Agents SDK.
+
+    Settings loads OPENAI_API_KEY out of `.env` into a pydantic object; the SDK reads the
+    PROCESS ENVIRONMENT and constructs its client lazily on the first turn. Without this
+    bridge the whole app imports, boots and passes /readyz, then dies on the first real
+    request with "Missing credentials" — the failure is invisible until a user hits it.
+    (v1 did the equivalent with an explicit os.environ assignment.)
+    """
+    settings = get_settings()
+    if settings.openai_api_key:
+        set_default_openai_key(settings.openai_api_key, use_for_tracing=False)
+    if settings.openai_org_id:
+        # The SDK's lazy client reads this from the environment; there is no setter for it.
+        os.environ.setdefault("OPENAI_ORG_ID", settings.openai_org_id)
+
+
+_configure_openai()
 
 
 def model_settings() -> ModelSettings:
