@@ -1,0 +1,94 @@
+# Theme: cases built from the failure modes v1 actually had.
+#
+# Each of these is designed so that the plausible answer and the correct answer differ.
+# The code in every case is still verified against the tariff — "adversarial" describes
+# where the case came from, not how the ground truth was established.
+#
+# Three families:
+#   name-vs-material  the product NAME points at one group, the MATERIAL puts it in
+#                     another. Group 40 (гума) vs group 64 (взуття) is the textbook one,
+#                     and v1 had no measurement that would have caught it.
+#   non-terminal-echo the user offers a code that is real but NOT declarable. v1 rendered
+#                     whatever the model produced, so a 4- or 6-digit "answer" reached the
+#                     user as if it were a result. The system must drill to a 10-digit leaf.
+#   multi-product     two goods in one message. One 10-digit code cannot cover both.
+#
+# Schema: see evals/README.md. Verified by evals/build_golden.py.
+
+- id: adv-rubber-boots
+  input: "Чоботи гумові робочі, що закривають щиколотку, верх і підошва з вулканізованої гуми"
+  expect_outcome: clarification
+  rationale: >-
+    The word "гумові" pulls toward group 40, but note 2(a) to group 40 pushes footwear out
+    of it: rubber boots are footwear, group 64. Inside 64 the split is by construction —
+    6401 requires an upper neither stitched nor riveted to the sole, 6402 takes the rest.
+    The description does not state the assembly method, so the 6402 99 10 twin (also
+    "з гумовим верхом") is accepted rather than counted wrong.
+    ADJUDICATED 2026-09-16: the first live eval run flipped this case. The model navigated to
+    the right heading and asked for the one missing fact instead of committing. Since this
+    rationale itself says the description does not settle the split, expecting a committed
+    code was the bug — a golden set that rewards guessing an unstated attribute trains the
+    system into exactly the confident-wrong-code failure it exists to prevent. This
+    case therefore asserts only that the system ASKS rather than guesses. Nothing here
+    pins the heading — a clarification issues no code — but a model that degenerates into
+    asking about everything is caught by answer_rate, which is gated alongside accuracy.
+  source: domain-reasoning
+  tags: [footwear, name-vs-material]
+
+- id: adv-plastic-flowers
+  input: "Штучні квіти з пластмаси для оформлення вітрини"
+  expect_outcome: result
+  expect_code: "6702100000"
+  rationale: >-
+    "З пластмаси" invites group 39, but group 39 excludes the articles of group 67, and
+    6702 is named "Штучні квіти, листя, плоди та їх частини" with 6702 10 the leaf for
+    plastics. The material is the qualifier here, not the heading.
+  source: domain-reasoning
+  tags: [name-vs-material, plastics]
+
+- id: adv-steel-pot
+  input: "Каструля кухонна з нержавіючої сталі з кришкою, об’єм 3 л"
+  expect_outcome: result
+  expect_code: "7323930000"
+  rationale: >-
+    "Каструля" alone spans four different groups — 6911/6912 if ceramic, 7013 if glass,
+    7615 if aluminium, 7323 if ferrous — and only the material picks one. Stainless steel
+    lands in 7323, where 7323 93 is the leaf "з нержавіючої сталі". The 3 l is deliberate
+    noise: nothing in 7323 splits on capacity.
+  source: domain-reasoning
+  tags: [metals, name-vs-material]
+
+- id: adv-nonterminal-3919
+  input: "Самоклейна плівка з полівінілхлориду у рулоні завширшки 15 см — це ж 3919 10, так?"
+  expect_outcome: result
+  expect_code: "3919101200"
+  rationale: >-
+    Same goods as live-plastics-film, with a non-terminal code asserted by the user.
+    3919 10 exists and is correct as far as it goes, but it has children and is therefore
+    not declarable. Agreeing with the user and echoing "3919 10" is the v1 failure this
+    case exists to catch; the turn must go down to the 10-digit leaf.
+  source: domain-reasoning
+  tags: [plastics, non-terminal-echo]
+
+- id: adv-nonterminal-8471
+  input: "Ноутбук масою 1,4 кг з процесором, клавіатурою та екраном — код 8471, правильно?"
+  expect_outcome: result
+  expect_code: "8471300000"
+  rationale: >-
+    A 4-digit heading offered as if it were an answer. 8471 is the right heading and an
+    undeclarable one. The mass and the three named components are exactly the text of
+    8471 30 00 00 ("портативні масою не більш як 10 кг, що мають принаймні центральний
+    блок оброблення інформації, клавіатуру та дисплей"), so the leaf is unambiguous.
+  source: domain-reasoning
+  tags: [electronics, non-terminal-echo]
+
+- id: adv-two-products
+  input: "Треба класифікувати два товари: футболка і кросівки"
+  expect_outcome: clarification
+  rationale: >-
+    Two distinct goods, and neither is described well enough to classify on its own: a
+    t-shirt splits on knitted vs woven and on fibre, a sneaker on the upper material. One
+    10-digit code cannot cover both, and guessing four attributes to emit two codes is the
+    failure this case exists to catch. Asking is the only defensible turn.
+  source: domain-reasoning
+  tags: [multi-product, vague-input]

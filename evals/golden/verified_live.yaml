@@ -1,0 +1,42 @@
+# Theme: turns this system has already produced against the live API, checked by a human.
+#
+# The smallest and the most expensive source. Every case here was run end to end, the
+# emitted code was read against the tariff by a person, and the turn was recorded. These
+# are the only cases whose difficulty is honest: the wording is what a human actually
+# typed, not text reverse-engineered from the answer.
+#
+# Schema: see evals/README.md. Verified by evals/build_golden.py.
+
+- id: live-plastics-film
+  input: "Самоклейна плівка з полівінілхлориду у рулоні завширшки 15 см"
+  expect_outcome: result
+  expect_code: "3919101200"
+  rationale: >-
+    Heading 3919 splits first on width: 3919 10 is "у рулонах завширшки не більш як 20 см"
+    and 15 cm falls inside it. Under that branch the polymer decides, and PVC is named
+    explicitly in 3919 10 12 ("з полівінілхлориду або поліетилену"), so the neighbouring
+    3919 10 15 (поліпропілен) and the residual 3919 10 19 are both excluded by the text.
+  source: verified-live
+  tags: [plastics, dimension-rule]
+
+- id: live-led-lamp
+  input: "Світлодіодна лампа для побутового освітлення, цоколь E27, 9 Вт"
+  expect_outcome: result
+  expect_code: "8539520000"
+  rationale: >-
+    8539 covers lamps as light sources, and 8539 52 is the one leaf that names LED lamps
+    ("світлодіодні (LED) лампи"). The trap next door is 8541, which takes bare LED diodes
+    and modules; a finished lamp with an E27 cap is a lamp, not a semiconductor device.
+  source: verified-live
+  tags: [electronics, lighting]
+
+- id: live-vague-shchos
+  input: "щось таке"
+  expect_outcome: clarification
+  rationale: >-
+    Two words that name no product, no material and no function. There is nothing in the
+    tariff this can be matched against, so the only correct turn is to ask. Any 10-digit
+    code emitted here is a fabrication, and in customs classification a confident wrong
+    code is worse than a question.
+  source: verified-live
+  tags: [vague-input]

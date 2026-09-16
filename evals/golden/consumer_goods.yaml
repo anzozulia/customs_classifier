@@ -1,0 +1,130 @@
+# Theme: sections VIII, XI, XII, XIV, XVIII, XX and XXI — leather, textiles, footwear and
+# headgear, jewellery, optical goods and clocks, miscellaneous manufactured articles, art.
+#
+# Tariff-derived, with the same caveat as the other derived files: the descriptions were
+# written from the leaves, so the wording is closer to the tariff's than a real user's.
+#
+# Several of these split on material rather than on what the article IS — a t-shirt by
+# fibre, a hard hat by plastic versus other materials, a ring by which precious metal.
+# That is the shape of the tariff in these sections and the reason a product name alone is
+# rarely enough.
+#
+# Schema: see evals/README.md. Verified by evals/build_golden.py.
+
+- id: cons-leather-belt
+  input: "Пасок чоловічий з натуральної шкіри з металевою пряжкою"
+  expect_outcome: result
+  expect_code: "4203300000"
+  rationale: >-
+    4203 is articles of apparel and clothing accessories of leather, and 4203 30 is the
+    leaf "пояси, паски, портупеї і патронташі". The buckle is a minor component and does
+    not move the goods to group 73 or 83.
+  source: tariff-derived
+  tags: [leather]
+
+- id: cons-cotton-tshirt
+  input: "Футболка трикотажна з бавовни, чоловіча, з коротким рукавом"
+  expect_outcome: result
+  expect_code: "6109100000"
+  rationale: >-
+    Two gates: knitted puts the garment in group 61 rather than 62, and 6109 10 is the
+    cotton leaf of the t-shirt heading. A synthetic t-shirt goes to 6109 90 and a woven
+    shirt leaves 6109 altogether, so both facts are load-bearing.
+  source: tariff-derived
+  tags: [textiles, name-vs-material]
+
+- id: cons-running-shoes
+  input: "Кросівки для бігу з верхом з текстильних матеріалів на гумовій підошві"
+  expect_outcome: result
+  expect_code: "6404110000"
+  rationale: >-
+    Footwear headings in group 64 are ordered by the upper, not by the use: a textile
+    upper on a rubber sole is 6404, and 6404 11 is "взуття спортивне ... тренувальне та
+    аналогічне взуття". The same shoe with a leather upper would be 6403.
+  source: tariff-derived
+  tags: [footwear, name-vs-material]
+
+- id: cons-hard-hat
+  input: "Каска будівельна захисна помаранчева з регульованим оголів’ям"
+  expect_outcome: clarification
+  rationale: >-
+    6506 10 is "захисні головні убори" and splits only on material: 6506 10 10 з пластмаси
+    against 6506 10 80 з інших матеріалів. The description does not state the material, so
+    both leaves are defensible — the plastic one is expected because modern construction
+    helmets are moulded thermoplastic, and the other is accepted rather than counted wrong.
+    ADJUDICATED 2026-09-16: the first live eval run flipped this case. The model navigated to
+    the right heading and asked for the one missing fact instead of committing. Since this
+    rationale itself says the description does not settle the split, expecting a committed
+    code was the bug — a golden set that rewards guessing an unstated attribute trains the
+    system into exactly the confident-wrong-code failure it exists to prevent. This
+    case therefore asserts only that the system ASKS rather than guesses. Nothing here
+    pins the heading — a clarification issues no code — but a model that degenerates into
+    asking about everything is caught by answer_rate, which is gated alongside accuracy.
+  source: tariff-derived
+  tags: [textiles, known-ambiguous]
+
+- id: cons-silver-ring
+  input: "Каблучка ювелірна зі срібла 925 проби з фіанітом"
+  expect_outcome: result
+  expect_code: "7113110000"
+  rationale: >-
+    7113 is jewellery of precious metal and splits by which metal: 7113 11 is "із срібла".
+    A cubic-zirconia stone is not a precious stone and does not move the goods; silver
+    plated onto base metal would fall to 7113 20 instead.
+  source: tariff-derived
+  tags: [jewellery]
+
+- id: cons-sunglasses
+  input: "Окуляри сонцезахисні з лінзами з пластмаси, оправа пластикова"
+  expect_outcome: result
+  expect_code: "9004109100"
+  rationale: >-
+    9004 10 is sunglasses, and beneath it the split is by lens material: optical (glass)
+    lenses in 9004 10 10, plastic lenses in 9004 10 91. Corrective spectacles would be
+    9004 90, so "сонцезахисні" and the lens material are the two decisions.
+  source: tariff-derived
+  tags: [instruments]
+
+- id: cons-digital-watch
+  input: "Годинник наручний кварцовий з рідкокристалічним дисплеєм, корпус з нержавіючої сталі"
+  expect_outcome: result
+  expect_code: "9102120000"
+  rationale: >-
+    9101 takes wrist-watches with a case of precious metal and 9102 takes all the rest, so
+    the steel case decides the heading. Inside 9102 the electrically operated watches split
+    by display, and an LCD-only watch is 9102 12 "лише з оптико-електронною індикацією".
+  source: tariff-derived
+  tags: [instruments, name-vs-material]
+
+- id: cons-toothbrush
+  input: "Щітка зубна ручна з нейлоновою щетиною, для дорослих"
+  expect_outcome: result
+  expect_code: "9603210000"
+  rationale: >-
+    9603 21 names "щітки зубні, включаючи щітки для зубних протезів" and is terminal. An
+    electric toothbrush would leave group 96 for 8509 because of its motor, which is why
+    the input says "ручна".
+  source: tariff-derived
+  tags: [household]
+
+- id: cons-gas-lighter
+  input: "Запальничка кишенькова газова одноразова, без можливості перезаряджання"
+  expect_outcome: result
+  expect_code: "9613100000"
+  rationale: >-
+    9613 splits pocket gas lighters on one attribute only: refillable or not. 9613 10 00 00
+    is the non-refillable leaf and 9613 20 00 00 its refillable twin, so the single word
+    "одноразова" is the whole answer.
+  source: tariff-derived
+  tags: [household]
+
+- id: cons-antique-sculpture
+  input: "Оригінальна бронзова скульптура авторської роботи, виготовлена у 1890 році"
+  expect_outcome: result
+  expect_code: "9703100000"
+  rationale: >-
+    9703 takes original sculptures in any material — the bronze is irrelevant to the
+    heading, which is why this is not group 74 or 83 — and splits on age: 9703 10 is
+    "віком понад 100 років", which an 1890 piece satisfies.
+  source: tariff-derived
+  tags: [art, name-vs-material]

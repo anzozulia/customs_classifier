@@ -1,0 +1,96 @@
+# Theme: what the turn should DO, not only which code it lands on.
+#
+# A turn ends in exactly one of three ways, and which one is a product decision, not a
+# failure mode. In v1 production 17.4% of turns were clarifications; an eval that scores a
+# clarification as a miss will push the system toward confident wrong codes, which is the
+# worst possible outcome when a code has legal and financial consequences. So the
+# clarification and conversation cases below are scored as strictly as the code cases.
+#
+# The four dimension cases come in pairs that straddle a threshold in the tariff text.
+# Each pair shares its wording except for one number. A model that reads the product and
+# ignores the measurement gets exactly one of each pair right, which is visible in the
+# scores and invisible in any aggregate accuracy figure.
+#
+# Schema: see evals/README.md. Verified by evals/build_golden.py.
+
+- id: beh-vague-terse
+  input: "треба код"
+  expect_outcome: clarification
+  rationale: >-
+    A request with no object. Nothing here narrows 10,490 terminal codes by even one
+    branch, so the turn must ask what the goods are.
+  source: domain-reasoning
+  tags: [vague-input]
+
+- id: beh-vague-single-word
+  input: "товар"
+  expect_outcome: clarification
+  rationale: >-
+    The literal word "goods". It names the category the whole tariff covers and so carries
+    zero information; asking is the only defensible turn.
+  source: domain-reasoning
+  tags: [vague-input]
+
+- id: beh-conv-what-is-uktzed
+  input: "що таке УКТЗЕД?"
+  expect_outcome: conversation
+  rationale: >-
+    A question about the nomenclature itself, not a request to classify anything. Calling
+    ask_clarification here would be wrong too: there is nothing to clarify, the user asked
+    a question and is owed an answer.
+  source: domain-reasoning
+  tags: [system-question]
+
+- id: beh-conv-code-digits
+  input: "скільки цифр у коді УКТЗЕД?"
+  expect_outcome: conversation
+  rationale: >-
+    Asks about the structure of a code (10 digits at the declarable level, with 2-, 4-, 6-
+    and 8-digit levels above it). No product is mentioned, so neither a code nor a
+    clarification is an appropriate ending.
+  source: domain-reasoning
+  tags: [system-question]
+
+- id: beh-dim-bottle-small
+  input: "Пляшка з поліетилентерефталату для питної води, місткість 1,5 л"
+  expect_outcome: result
+  expect_code: "3923301000"
+  rationale: >-
+    3923 30 covers "бутлі, пляшки, фляги та аналогічні вироби" and splits on nothing but
+    capacity: 3923 30 10 is "вмістом не більш як 2 л". Paired with beh-dim-bottle-large,
+    which differs only in the number.
+  source: tariff-derived
+  tags: [plastics, dimension-rule]
+
+- id: beh-dim-bottle-large
+  input: "Каністра з поліетилентерефталату для питної води, місткість 5 л"
+  expect_outcome: result
+  expect_code: "3923309000"
+  rationale: >-
+    Same branch as beh-dim-bottle-small, other side of the same threshold: 5 l is
+    "вмістом більш як 2 л", so 3923 30 90. A model that classifies the container and skips
+    the litres will answer 3923 30 10 to both.
+  source: tariff-derived
+  tags: [plastics, dimension-rule]
+
+- id: beh-dim-moto-400
+  input: "Мотоцикл дорожній з поршневим бензиновим двигуном робочим об’ємом 400 см³"
+  expect_outcome: result
+  expect_code: "8711309000"
+  rationale: >-
+    8711 splits on engine displacement in five bands. 400 cm³ is inside 8711 30
+    (понад 250, але не більш як 500), and inside that heading the further split is at
+    380 cm³, which puts it in 8711 30 90 rather than 8711 30 10.
+  source: tariff-derived
+  tags: [vehicles, dimension-rule]
+
+- id: beh-dim-moto-650
+  input: "Мотоцикл дорожній з поршневим бензиновим двигуном робочим об’ємом 650 см³"
+  expect_outcome: result
+  expect_code: "8711400000"
+  rationale: >-
+    Same product wording, one number changed. 650 cm³ crosses out of 8711 30 into 8711 40
+    (понад 500, але не більш як 800), which is a single terminal leaf with no sub-split.
+    Paired with beh-dim-moto-400.
+  source: tariff-derived
+  tags: [vehicles, dimension-rule]

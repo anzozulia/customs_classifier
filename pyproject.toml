@@ -25,7 +25,17 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff>=0.14.5", "pyright>=1.1.407"]
+# pyyaml: the eval golden set is YAML. It is already installed in the venv, but nothing
+# declares it (`pip show pyyaml` reports an empty Required-by), so it is a transitive
+# accident that a clean install would drop. Declared here, not in `dependencies` — the
+# runtime app never reads YAML.
+dev = [
+  "pytest==9.1.1",
+  "pytest-asyncio==1.4.0",
+  "ruff>=0.14.5",
+  "pyright>=1.1.407",
+  "pyyaml==6.0.3",
+]
 
 [build-system]
 requires = ["setuptools>=77"]
