@@ -1,4 +1,4 @@
-# ruff: noqa: RUF001  -- Ukrainian text below. Single-letter Cyrillic words and
+
 # the en dash are correct typography here, not Latin look-alikes; pyproject pins ruff's
 # defaults (no allowed-confusables), so the exemption is declared per file.
 """`ClassifierServer` — the whole ChatKit integration point.
@@ -65,7 +65,7 @@ from app.agent.agent import build_agent
 from app.agent.context import UktzedContext
 from app.agent.prompts import PROMPT_VERSION, render_system_prompt
 from app.chat.converter import converter
-from app.chat.errors import classify_error
+from app.chat.errors import classify_error, is_retryable, user_message
 from app.context import RequestContext
 from app.records import begin_turn, codes_from_ledger, fail_turn, finish_turn
 from app.settings import get_settings
@@ -236,8 +236,11 @@ class ClassifierServer(ChatKitServer[RequestContext]):
             with suppress(Exception):
                 result.cancel()
             logger.exception("turn failed: error_class=%s thread=%s", error_class, thread.id)
+            # The message and the retry affordance both follow the CLASS. Offering "Повторити
+            # спробу" on a billing exhaustion is worse than useless: the retry is guaranteed to
+            # fail and it hides the real cause from whoever has to fix it.
             raise CustomStreamError(
-                "Внутрішня помилка. Спробуйте ще раз.", allow_retry=True
+                user_message(error_class), allow_retry=is_retryable(error_class)
             ) from exc
         finally:
             # Usage is STALE until the stream drains, so it is read here and never inside the
