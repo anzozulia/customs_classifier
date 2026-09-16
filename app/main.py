@@ -1,8 +1,8 @@
 """The ASGI app.
 
-One FastAPI application: login, `/chatkit`, health. ChatKit is framework-agnostic — `process()`
-takes bytes — so nothing here is a ChatKit adapter; it is ordinary FastAPI with one streaming
-endpoint.
+One FastAPI application: login, `/chatkit`, `/api/history`, health. ChatKit is
+framework-agnostic — `process()` takes bytes — so nothing here is a ChatKit adapter; it is
+ordinary FastAPI with one streaming endpoint.
 
 `/readyz` is not a ping. It answers the three questions that made v1 undebuggable: is the
 database reachable, is the tariff actually ingested, and which model is configured. v1 shipped
@@ -32,6 +32,7 @@ from app.chat.routes import router as chat_router
 from app.chat.server import ClassifierServer
 from app.chat.store import PgStore
 from app.db import close_pool, init_pool
+from app.records.routes import router as records_router
 from app.settings import Settings, get_settings
 from app.tariff.repo import TariffRepo
 
@@ -96,6 +97,10 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(chat_router)
+# /api/history. Registered here with the others and, like them, BEFORE the SPA mount at "/":
+# Starlette matches in registration order, so a router included after that mount is
+# unreachable — the static handler answers /api/history with its own 404 first.
+app.include_router(records_router)
 
 
 class _SpaFiles(StaticFiles):
