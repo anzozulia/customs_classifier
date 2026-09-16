@@ -10,7 +10,8 @@
  */
 
 import { ChatKit, useChatKit } from "@openai/chatkit-react";
-import { useCallback, useState } from "react";
+import type { UseChatKitReturn } from "@openai/chatkit-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // `import type`, not `import`: @openai/chatkit ships NO runtime. Its package `exports` map
 // has only a "types" condition, so a value import type-checks and then fails at bundle time
@@ -24,6 +25,9 @@ import type { ColorScheme } from "../lib/theme";
 export type ChatStatus = "loading" | "ready" | "streaming" | "error";
 
 const THREAD_STORAGE_KEY = "uktzed:thread-id";
+
+/** Must match NEW_CLASSIFICATION_ACTION in app/agent/tools_terminal.py. */
+const NEW_CLASSIFICATION_ACTION = "new_classification";
 
 const PROMPTS: StartScreenPrompt[] = [
   // `icon` is a ChatKitIcon — a closed union of built-in names (plus `lucide:*`). Several
@@ -51,6 +55,18 @@ function readStoredThread(): string | null {
     return window.localStorage.getItem(THREAD_STORAGE_KEY);
   } catch {
     return null;
+  }
+}
+
+/** Remove `?thread=` from the address bar in place — no navigation, no remount. */
+function dropThreadParam(): void {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("thread")) return;
+    url.searchParams.delete("thread");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  } catch {
+    // A locked-down history API is not worth failing the click over.
   }
 }
 
@@ -97,6 +113,10 @@ export default function ChatKitPanel({
     return response;
   }, []);
 
+  // The action handler lives inside the options object that produces `control`, so it cannot
+  // close over `control` directly. A ref breaks the cycle and always sees the current one.
+  const chatkitRef = useRef<UseChatKitReturn | null>(null);
+
   const chatkit = useChatKit({
     api: {
       // One URL for every operation — the custom client never appends a path; the operation
@@ -127,10 +147,26 @@ export default function ChatKitPanel({
       // bundle. Skipping it is a decision, not an oversight.
     },
     header: { enabled: true, title: { enabled: true, text: "Класифікація товару" } },
-    // With history enabled the frame issues threads.list {limit: 9999} on EVERY mount,
-    // before the user does anything. The server's Store scopes it to the session user.
-    history: { enabled: true, showDelete: true, showRename: true },
+    // Off deliberately. The chat window is for ONE product; past work lives on /history,
+    // which shows codes and paths rather than conversation titles and can be searched and
+    // exported. Disabling it also drops a threads.list {limit: 9999} the frame otherwise
+    // issued on EVERY mount, before the user had done anything.
+    history: { enabled: false },
     thread: { autoScroll: true },
+    widgets: {
+      // The server appends a "Класифікувати наступний товар" button under every finished
+      // classification. handler="client" means it never reaches the backend: a new product
+      // is a new thread, so we just switch to one. `setThreadId(null)` is ChatKit's own
+      // documented way to start a fresh thread.
+      onAction: async (action) => {
+        if (action.type !== NEW_CLASSIFICATION_ACTION) return;
+        await chatkitRef.current?.setThreadId(null);
+        // `?thread=` is read once at mount to restore a conversation opened from /history.
+        // Leaving it in the URL after switching away means a refresh silently reopens the
+        // OLD thread — so drop it, without a navigation that would remount the frame.
+        dropThreadParam();
+      },
+    },
     startScreen: {
       greeting: "Опишіть товар — підберу код УКТЗЕД.",
       prompts: PROMPTS,
@@ -155,6 +191,11 @@ export default function ChatKitPanel({
       notifyStatus("error");
     },
   });
+
+  useEffect(() => {
+    // `setThreadId` lives on the hook's return value (ChatKitMethods), not on `control`.
+    chatkitRef.current = chatkit;
+  }, [chatkit]);
 
   // `:host` is height:100%/width:100%, so an unsized parent collapses the chat to zero
   // height. The definite height comes from the page layout.
