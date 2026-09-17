@@ -19,7 +19,7 @@ COMPOSE ?= docker compose
 EVAL_CASES ?= evals/golden/behaviour.yaml
 
 .DEFAULT_GOAL := help
-.PHONY: help dev up down logs migrate ingest user test lint fmt spike eval eval-fast eval-verify
+.PHONY: help dev up down logs migrate ingest superuser user test lint fmt spike eval eval-fast eval-verify
 
 help: ## show this list
 	@grep -hE '^[a-z][a-z-]*:.*##' $(MAKEFILE_LIST) | sed -E 's/:[^#]*## /\t/' | expand -t 12
@@ -42,7 +42,10 @@ migrate: ## alembic upgrade head, in a one-shot container against the running db
 ingest: ## load data/uktzed_hierarchical.json (idempotent per content hash; expect 14187 / 10490)
 	$(COMPOSE) run --rm app python -m app.cli ingest data/uktzed_hierarchical.json
 
-user: ## create a login — make user USERNAME=anton (prints a generated password once)
+superuser: ## create the FIRST login: a superuser who can open /backofficeadminpanel and flip the app public
+	$(COMPOSE) exec app python -m app.cli create-user $(or $(USERNAME),$(error USERNAME is required, e.g. `make superuser USERNAME=anton`)) --superuser
+
+user: ## create an ordinary login — make user USERNAME=anton (prints a generated password once)
 	$(COMPOSE) exec app python -m app.cli create-user $(or $(USERNAME),$(error USERNAME is required, e.g. `make user USERNAME=anton`))
 
 test: ## run the test suite

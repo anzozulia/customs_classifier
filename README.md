@@ -94,6 +94,7 @@ Two more variables are read by `docker-compose.yml` for the proxy only, and are 
 
 ```dotenv
 UKTZED_DOMAIN=uktzed.example.com     # defaults to `localhost` (Caddy's internal CA)
+PUBLIC_BASE_URL=https://uktzed.example.com   # MUST equal https://<UKTZED_DOMAIN> exactly, or every POST is 403
 ACME_EMAIL=ops@example.com           # Let's Encrypt contact
 ```
 
@@ -102,7 +103,7 @@ ACME_EMAIL=ops@example.com           # Let's Encrypt contact
 ```bash
 make up          # builds the image, starts db, runs migrations to completion, starts app + caddy
 make ingest      # loads the tariff: expect 14187 nodes / 10490 terminals
-make user USERNAME=anton
+make superuser USERNAME=anton   # the FIRST account must be a superuser — see below
 make logs
 ```
 
@@ -115,6 +116,13 @@ your browser will warn once) or `https://$UKTZED_DOMAIN`.
 
 **There is no registration page anywhere in the app.** The absence of the route *is*
 the "no self-registration" requirement. `make user` is the only way in.
+
+**The app boots closed.** `access_mode` defaults to `private`, so after `make up` nobody
+outside can use it — not even by accident. Opening it is a deliberate act: sign in at
+`https://<UKTZED_DOMAIN>/backofficeadminpanel` as the superuser you created above, and switch
+**Режим доступу** to public. The same switch closes it again instantly for every guest. That
+is why the first account must be a superuser: an ordinary `make user` login cannot reach the
+panel, and a deploy with no superuser has no way to open.
 
 ### 3. Develop
 
