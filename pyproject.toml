@@ -57,7 +57,7 @@ select = ["E", "F", "W", "B", "I", "UP", "SIM", "RUF"]
 allowed-confusables = ["і", "а", "у", "о", "б", "е", "с", "р", "х", "–", "«", "»",
                        "Н", "І", "А", "О", "В", "Е", "С", "Р", "Х", "К", "М", "Т",
                        "З", "У", "Д", "Г", "П", "Б", "Ч", "Я", "Ю", "Ц", "Ш", "Ж",
-                       "\u203a", "\u2039"]   # › ‹ as breadcrumb separators
+                       "\u203a", "\u2039", "\u2019"]   # › ‹ as breadcrumb separators
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
