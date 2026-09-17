@@ -236,11 +236,8 @@ run_migrations() {
 }
 
 bring_up() {
-  # No-op by design. :80 and :443 belong to the HOST nginx, which also serves several
-  # unrelated sites, so this stack ships no proxy and a deploy must never reload it.
-  # The vhost (deploy/nginx/) is installed and reloaded by hand, with `nginx -t` first,
-  # because a bad config here would take those other sites down too.
-  return 0
+  log "bringing up the stack on ${APP_TAG}"
+  compose up -d --remove-orphans
 }
 
 do_rollback() {
