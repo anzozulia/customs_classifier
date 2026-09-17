@@ -15,7 +15,7 @@ successive narrowings, and the only honest label is the whole chain from the hea
 
 from __future__ import annotations
 
-from app.agent.tools_terminal import _breadcrumb, _describe
+from app.agent.tools_terminal import _answer_markdown, _breadcrumb, _describe
 
 SECTION = "Машини, обладнання та механізми; електротехнічне обладнання; їх частини"
 CHAPTER = "Електричні машини, обладнання та їх частини"
@@ -91,3 +91,33 @@ def test_the_breadcrumb_is_derived_from_the_code_not_from_a_path() -> None:
 
 def test_the_breadcrumb_survives_a_non_ten_digit_code() -> None:
     assert "**3919**" in _breadcrumb("3919")
+
+
+def test_the_narrowing_is_never_printed_on_its_own() -> None:
+    """Round 5, and the one that settles it: «з бавовни» appears ONCE, inside the chain.
+
+    Three revisions showed it separately as well — a bold label, then appended to the code
+    heading. Every one of them printed the same fragment twice, and the standalone copy said
+    nothing, because a narrowing has no meaning without what it narrows.
+    """
+    from app.agent.tools_terminal import _Checked
+    from app.tariff.validate import CodeStatus
+
+    class _Detail:
+        full_path = _path(SECTION, CHAPTER, HEADING_6109, "з бавовни")
+        description = "з бавовни"
+
+    rendered = _answer_markdown(
+        [_Checked(code="6109100000", detail=_Detail(), status=CodeStatus.VALID)],
+        "висока",
+        "Склад 100% бавовна визначає підпозицію.",
+        "Чоловіча трикотажна футболка зі 100% бавовни.",
+        [],
+        [],
+    )
+
+    assert rendered.count("з бавовни") == 1, "the narrowing must appear exactly once"
+    assert "**з бавовни**" not in rendered, "and never as a standalone label"
+    assert f"{HEADING_6109} → з бавовни" in rendered, "only as the tail of the chain"
+    # The heading line is the CODE alone — nothing is appended to it.
+    assert rendered.splitlines()[0] == "### 6109 10 00 00"
