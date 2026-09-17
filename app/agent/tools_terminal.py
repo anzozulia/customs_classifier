@@ -329,8 +329,8 @@ def _breadcrumb(code: str) -> str:
     """
     digits = normalize_code(code)
     if len(digits) != 10:
-        return f"**{format_code(code)}**"
-    return " \u203a ".join([digits[:2], digits[:4], f"**{format_code(digits)}**"])
+        return format_code(code)
+    return " \u203a ".join([digits[:2], digits[:4], format_code(digits)])
 
 
 def _answer_markdown(
@@ -340,50 +340,72 @@ def _answer_markdown(
     product_summary: str,
     path: list[PathStep],
     alternatives: list[Alternative],
+    label: str = "",
 ) -> str:
-    """The answer, rendered from database text plus the model's reasoning.
+    """The answer, in reading order.
 
-    Markdown, not a `.widget` template: the widget is a later milestone, and a terminal tool
-    that renders nothing at all is strictly worse than one that renders plainly.
+    Designed as an information flow, after four rounds of formatting the wrong structure:
+
+        ### 8516 71 00 00                                   the answer
+        **Побутові електроприлади для приготування кави**   what it means, in plain words
+        <one paragraph: the product, and why this code>     the argument
+        Впевненість: висока · 85 › 8516 › 8516 71 00 00      metadata
+        > Офіційний опис позиції: …                          reference, last, as a quote
+
+    The plain-words line is written by the MODEL (`label`). The tariff cannot supply it: a
+    heading is a semicolon-joined enumeration of unrelated goods (8516 lists water heaters,
+    hair dryers, irons and coffee machines) and the leaf beneath it is a bare differentia
+    («з бавовни», or «інші» for 2,473 of 10,490 leaves). Every algorithmic attempt to derive a
+    label from that text either mislabelled (a camera as flashbulbs) or said nothing. The
+    model, having just read the text, knows which clause applies — and its label is checked
+    the same way its rationale is: by the reader, against the official text quoted beneath.
+
+    The official text goes LAST. It is what a broker pastes into a declaration, not what a
+    reader needs in order to understand the answer, and putting it second buried the answer
+    behind 400 characters of enumeration.
+
+    `path` is accepted for signature stability and unused: the trail is derived from the code.
     """
+    del path
     lines: list[str] = []
+
     for index, item in enumerate(checked):
         if index:
-            lines.append("---")
-            lines.append("")
-        # Number first and alone, because it is the thing being copied into a declaration.
+            lines += ["---", ""]
         lines += [f"### {format_code(item.code)}", ""]
-        # ONE description: heading → narrowings, whole, exactly once.
-        #
-        # Three earlier revisions also showed the narrowing SEPARATELY — as a bold label, then
-        # on the heading line. Both were the same mistake: «з бавовни» and «інші» say nothing
-        # by themselves, and the chain already ends with them. It was one fragment printed
-        # twice, the second time in a form that could not be read on its own.
-        specific, heading = _describe(item.detail.full_path)
-        goods = " → ".join(part for part in (heading, specific) if part)
-        if goods:
-            lines += [goods, ""]
+        if index == 0 and label.strip():
+            lines += [f"**{label.strip()}**", ""]
         if item.status is CodeStatus.AMBIGUOUS:
             lines += [f"_{message_for(CodeStatus.AMBIGUOUS, item.code, item.detail)}_", ""]
 
-    if product_summary.strip():
-        lines += [product_summary.strip(), ""]
-    if rationale.strip():
-        lines += [rationale.strip(), ""]
+    # The argument as ONE paragraph: what the product is, then why it lands here. Two
+    # separate paragraphs read as two disconnected fragments; a customs justification is one
+    # line of reasoning from the goods to the code.
+    argument = " ".join(part.strip() for part in (product_summary, rationale) if part.strip())
+    if argument:
+        lines += [argument, ""]
 
     if alternatives:
-        lines += ["**Також розглянуто**", ""]
-        lines += [
-            f"- `{format_code(a.code)}` {_tail(a.description, 1)} — {a.reason}"
-            for a in alternatives
-        ]
+        lines += ["Відхилено:", ""]
+        lines += [f"- {format_code(a.code)} — {a.reason.strip()}" for a in alternatives]
         lines.append("")
 
     trail = _breadcrumb(checked[0].code) if checked else ""
-    footer = trail or ""
-    if footer:
-        footer += " · "
-    lines.append(f"{footer}впевненість: {confidence}")
+    meta = f"Впевненість: {confidence}"
+    if trail:
+        meta += f" · {trail}"
+    lines += [meta, ""]
+
+    # Reference text, quoted so it reads as an excerpt rather than as prose to work through.
+    for item in checked:
+        specific, heading = _describe(item.detail.full_path)
+        official = " → ".join(part for part in (heading, specific) if part)
+        if official:
+            prefix = "Офіційний опис позиції"
+            if len(checked) > 1:
+                prefix += f" {format_code(item.code)}"
+            lines += [f"> {prefix}: {official}", ""]
+
     return "\n".join(lines).strip()
 
 
@@ -420,6 +442,7 @@ async def emit_classification(
     alternatives: list[Alternative],
     product_summary: str,
     evidence: Literal["опис користувача", "веб-джерело", "відповідь на уточнення"],
+    label: str,
 ) -> Ack:
     """Видає остаточний код УКТЗЕД користувачу. Завершує хід.
 
@@ -435,20 +458,26 @@ async def emit_classification(
         confidence: "висока" — усі ознаки товару однозначно вкладаються в цей код;
             "середня" — код найкращий з розглянутих, але одна ознака лишилась неявною;
             "низька" — вибір неоднозначний, і ти зобов'язаний заповнити alternatives.
-        rationale: 1–2 речення: ЧОМУ саме цей код і яка ознака відрізняє його від
-            найближчого сусіда. НЕ переказуй тут товар — він уже надрукований рядком вище
-            з product_summary, і повторення робить відповідь удвічі довшою без нової
-            інформації. Починай одразу з ознаки: «Ширина 15 см не перевищує 20 см, тому…».
-            Не цитуй назву позиції і не повторюй повний опис — його видно нижче.
+        rationale: 1–2 речення, що ПРОДОВЖУЮТЬ product_summary в одному абзаці: ЧОМУ саме
+            цей код і яка ознака відрізняє його від найближчого сусіда. НЕ переказуй товар —
+            попереднє речення вже його назвало. Починай одразу з ознаки: «Ширина 15 см не
+            перевищує 20 см, тому…». Відхилені сусіди йдуть в alternatives, не сюди.
         path: Пройдений шлях від розділу до коду, по одному кроку на рівень. Саме те, що
             ти відкривав інструментами, без домислів.
-        alternatives: Коди, які ти серйозно розглядав і відхилив, з причиною відхилення.
-            Порожній список, якщо альтернатив не було. Максимум 4. Обов'язковий, коли
-            confidence не "висока".
+        alternatives: Коди, які ти серйозно розглядав і відхилив. У reason — лише САМА
+            причина, коротко, без слів «відхилено, оскільки» (вони друкуються заголовком):
+            «нетрикотажні вироби», «жіночий одяг, а не чоловічий». Порожній список, якщо
+            альтернатив не було. Максимум 4. Обов'язковий, коли confidence не "висока".
         product_summary: ОДНЕ коротке речення: що саме за товар ти класифікував, як ти його
             зрозумів. Користувач за цим перевірить, чи правильно ти його зрозумів. Без
             маркетингових деталей і без переліку характеристик, які не вплинули на вибір.
         evidence: Звідки взято характеристики товару.
+        label: Один рядок простою мовою — ЩО ОХОПЛЮЄ цей код. Це заголовок відповіді, який
+            користувач прочитає одразу після номера. Візьми з тексту довідника ТУ частину
+            позиції, до якої належить товар, і сформулюй як назву: «Побутові електроприлади
+            для приготування кави або чаю», «Трикотажні футболки з бавовни», «Цифрові
+            фотокамери». НЕ копіюй увесь текст позиції (він буде надрукований окремо), НЕ
+            повторюй назву товару користувача, НЕ пиши «інші». До 60 символів.
     """
     ledger = ctx.context.ledger
     rec = ledger.begin_call(
@@ -501,7 +530,9 @@ async def emit_classification(
     )
     await stream_assistant_message(
         ctx.context,
-        _answer_markdown(checked, confidence, rationale, product_summary, path, clean_alternatives),
+        _answer_markdown(
+            checked, confidence, rationale, product_summary, path, clean_alternatives, label
+        ),
     )
     await _stream_new_classification_button(ctx.context)
 
