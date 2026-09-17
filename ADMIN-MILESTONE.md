@@ -132,7 +132,7 @@ on the `APIRouter`, next to `require_same_origin`, so no route added later can f
 
 **404, never 403.** A 403 confirms that the path exists, which is precisely what a hidden
 panel must not do. `require_superuser` raises `404 {"detail": "Not found"}` — byte-identical
-to the body `app/main.py` already returns for a store `NotFoundError`, so `/admin` and
+to the body `app/main.py` already returns for a store `NotFoundError`, so `/backofficeadminpanel` and
 `/nonsense` are indistinguishable on the wire and, in the SPA, pixel-identical (both render
 the same `NotFoundPage` inside the same shell).
 
@@ -236,7 +236,7 @@ python -m app.cli purge-guests --older-than-days 30  # counts, confirms, deletes
 `require_superuser` re-reads the row on every request, so a revocation lands on the target's
 next click without also logging them out of a conversation.
 
-Then: sign in, type `/admin` (or click the ✦ in the header, which is rendered only for a
+Then: sign in, type `/backofficeadminpanel` (or click the ✦ in the header, which is rendered only for a
 superuser), and flip the access mode to `public` when the demo starts.
 
 ---
@@ -256,10 +256,10 @@ contract. This pass mounted them and reconciled where the three had drifted.
   and `is_superuser`. Still never 401s.
 * `app/chat/server.py`, `app/agent/agent.py` — the runtime `model` and `reasoning_effort`
   reach the agent, the record and the log line. `build_agent` is now keyed on all three.
-* `app/admin/routes.py` — added `tokens_cached` and `runs_unpriced` to each usage window, so
+* `app/backofficeadminpanel/routes.py` — added `tokens_cached` and `runs_unpriced` to each usage window, so
   the dashboard can show the cache split and say when its total is a floor.
 
-**Frontend** (`web/src/lib/admin.ts` was written before the server existed and assumed a
+**Frontend** (`web/src/lib/backofficeadminpanel.ts` was written before the server existed and assumed a
 different shape; it is now the adapter, and no component had to learn about the difference)
 
 * overview is flat, not nested under `settings`; the window is `last_7d`, not `week`; turns
@@ -315,9 +315,9 @@ Be suspicious of anything below until it has been run.
 * **The live API.** No OpenAI call was made. That switching the model in the panel changes
   what the Responses API actually runs is asserted at the agent boundary (`Agent.model`,
   `ModelSettings.reasoning.effort`), not against OpenAI.
-* **The browser.** The demo pill, the ✦ link, `/admin` vs `/nonsense` parity, the
+* **The browser.** The demo pill, the ✦ link, `/backofficeadminpanel` vs `/nonsense` parity, the
   guest-session-pending screen and «Почати заново» were verified by the UI chunk in Chrome
-  before this pass rewired `lib/admin.ts`. The admin panel's data path (overview numbers,
+  before this pass rewired `lib/backofficeadminpanel.ts`. The admin panel's data path (overview numbers,
   model save, user actions) has been type-checked and built, but **not** rendered against a
   running server. That is the single most valuable thing to do next.
 * **Closing and reopening a real browser.** The 90-day `Max-Age` is verified on the wire; the
@@ -333,7 +333,7 @@ Be suspicious of anything below until it has been run.
 ```bash
 make up && make migrate && make ingest
 docker compose exec app python -m app.cli create-user anton --superuser
-# sign in, open /admin
+# sign in, open /backofficeadminpanel
 #   → the overview renders, access mode reads «приватний»
 #   → flip to «публічний»; in a private window, open / and check a guest session appears
 #   → run one classification as the guest; check it appears in the guest's /history and in

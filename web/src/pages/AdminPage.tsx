@@ -2,10 +2,15 @@
  * The hidden admin panel. Reached by typing /admin; linked from nowhere except the ✦ in the
  * header, which only a superuser is shown.
  *
- * Hiding is done by the SERVER answering 404 to `GET /api/admin/overview`, and this page
- * renders the app's ordinary not-found state when it does — the same component `/nonsense`
- * renders, inside the same shell. There is deliberately no «у вас немає доступу» branch:
- * that message is itself the disclosure.
+ * Reached by TYPING its obscure URL (see ADMIN_PATH); linked from nowhere except the ✦ in
+ * the header, which only a superuser is shown.
+ *
+ * When the server answers 404 to `GET /api/admin/overview` — which it does for a stranger, an
+ * ordinary user and a guest alike — this page shows a SIGN-IN FORM, not a not-found card.
+ * That is a deliberate change from the original design: the back office is reached by typing
+ * a URL, and in public mode every visitor is auto-minted as a guest, so a 404 here left the
+ * author with no way to sign in and close their own demo. The URL is the secret; the form is
+ * the lock. The form itself discloses nothing — it is identical whoever is looking at it.
  *
  * Sections rather than tabs. The access-mode switch is the author's kill switch during a
  * live demo and the usage numbers are their only spend visibility, so neither may be one
@@ -23,14 +28,15 @@ import type { AccessMode, AdminModels, AdminOverview, AdminSettings } from "../l
 import { errorText, fetchModels, fetchOverview, saveSettings } from "../lib/admin";
 import { ApiError } from "../lib/api";
 import type { AppConfig } from "../lib/config";
-import NotFoundPage from "./NotFoundPage";
+import AdminSignIn from "../components/admin/AdminSignIn";
 
 export default function AdminPage({ config }: { config: AppConfig }) {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   // The price list AND the price-list version, together: `GET /api/admin/models` stamps the
   // version onto every option, and the usage card labels its totals with it.
   const [models, setModels] = useState<AdminModels>({ models: [], pricing_version: null });
-  const [notFound, setNotFound] = useState(false);
+  // "The server will not talk to you" — a stranger, an ordinary user or a guest.
+  const [needsSignIn, setNeedsSignIn] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
 
@@ -48,7 +54,7 @@ export default function AdminPage({ config }: { config: AppConfig }) {
     } catch (cause: unknown) {
       // 404 is the "this route does not exist for you" answer, not a failure to report.
       if (cause instanceof ApiError && cause.status === 404) {
-        setNotFound(true);
+        setNeedsSignIn(true);
         return;
       }
       setLoadError(errorText(cause));
@@ -89,8 +95,10 @@ export default function AdminPage({ config }: { config: AppConfig }) {
     }
   };
 
-  if (notFound) {
-    return <NotFoundPage />;
+  if (needsSignIn) {
+    // A fresh superuser session changes what /api/config says about `user`, which is what
+    // reveals the ✦ in the header — so reload the whole app rather than just refetching here.
+    return <AdminSignIn onSignedIn={() => window.location.reload()} />;
   }
 
   if (loadError !== null) {

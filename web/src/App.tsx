@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Route, Routes } from "react-router-dom";
 
 import AppShell from "./components/AppShell";
+import { ADMIN_PATH } from "./lib/admin";
 import type { AppConfig } from "./lib/config";
 import { loadConfig } from "./lib/config";
 import { useColorScheme } from "./lib/theme";
@@ -77,6 +78,11 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage config={config} />} />
+      {/* OUTSIDE the shell and outside the guest gate on purpose. The back office must be
+          reachable while the app is public (where nobody is asked to log in) and while a
+          guest session is still settling — otherwise the author cannot get in to close the
+          very demo this route exists to end. It renders its own sign-in form. */}
+      <Route path={ADMIN_PATH} element={<AdminPage config={config} />} />
       {awaitingGuest ? (
         <Route path="*" element={<GuestSessionPending onRetry={load} />} />
       ) : (
@@ -85,9 +91,6 @@ export default function App() {
           <Route index element={<ChatPage config={config} scheme={scheme} />} />
           <Route path="history" element={<HistoryPage />} />
           <Route path="history/:id" element={<HistoryDetailPage />} />
-          {/* Hidden: linked only from the ✦ a superuser sees, 404-ed by the server for
-              everyone else — and a 404 renders exactly the NotFoundPage below. */}
-          <Route path="admin" element={<AdminPage config={config} />} />
           {/* Inside the layout on purpose: an unknown URL and a forbidden /admin have to
               look identical, header included. */}
           <Route path="*" element={<NotFoundPage />} />

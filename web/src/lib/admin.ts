@@ -36,6 +36,14 @@ import { apiJson } from "./api";
 import type { AccessMode, UserKind } from "./config";
 import type { Outcome } from "./history";
 
+/**
+ * The back-office path. Obscure on purpose: it is linked from nowhere, appears in no nav,
+ * and is not guessable from the rest of the URL space. Obscurity is not a control by itself
+ * — the control is that every /api/admin route is behind require_superuser — but it keeps
+ * the panel out of the way of a public demo audience.
+ */
+export const ADMIN_PATH = "/backofficeadminpanel";
+
 export type { AccessMode, UserKind };
 
 // ------------------------------------------------------------------------------- settings

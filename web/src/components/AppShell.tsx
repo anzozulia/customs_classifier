@@ -14,6 +14,7 @@
 
 import { NavLink, Navigate, Outlet, useLocation } from "react-router-dom";
 
+import { ADMIN_PATH } from "../lib/admin";
 import { LOGIN_PATH, apiFetch } from "../lib/api";
 import type { AppConfig } from "../lib/config";
 import type { ColorScheme } from "../lib/theme";
@@ -139,7 +140,7 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
 
             {user.isSuperuser && (
               <NavLink
-                to="/admin"
+                to={ADMIN_PATH}
                 className={({ isActive }) =>
                   [
                     "btn-icon text-base leading-none",
