@@ -86,11 +86,11 @@ def test_the_breadcrumb_is_derived_from_the_code_not_from_a_path() -> None:
     trail = _breadcrumb("6109100000")
     assert trail.startswith("61 ")
     assert "6109" in trail
-    assert "**6109 10 00 00**" in trail
+    assert trail.endswith("6109 10 00 00")
 
 
 def test_the_breadcrumb_survives_a_non_ten_digit_code() -> None:
-    assert "**3919**" in _breadcrumb("3919")
+    assert _breadcrumb("3919") == "3919"
 
 
 def test_the_narrowing_is_never_printed_on_its_own() -> None:

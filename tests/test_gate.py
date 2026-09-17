@@ -122,6 +122,7 @@ async def _emit(agent_ctx: UktzedContext, code: str, **overrides: Any) -> Ack:
         "alternatives": [],
         "product_summary": "Смартфон.",
         "evidence": "опис користувача",
+        "label": "Смартфони",
     }
     kwargs.update(overrides)
     return await emit_classification.__wrapped__(_wrap(agent_ctx), **kwargs)
