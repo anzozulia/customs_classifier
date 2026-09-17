@@ -55,10 +55,11 @@ __all__ = ["AGENT_NAME", "build_agent", "finalize_on_terminal_tool", "model_sett
 
 AGENT_NAME = "uktzed-classifier"
 
-# Before any Agent or Runner is constructed. v1 shipped 5,482 trace batches offsite with zero
-# consumers and every customer's product description in them. `ModelSettings(store=False)`
-# below is a separate switch: tracing controls the dashboard, `store` controls retention.
-set_tracing_disabled(True)
+# Before any Agent or Runner is constructed. Tracing (the Traces dashboard) and `store`
+# (the Logs page, via ModelSettings below) are two halves of one decision, so both follow
+# Settings.openai_telemetry. It is a programmatic call, which OVERRIDES the SDK's own
+# OPENAI_AGENTS_DISABLE_TRACING env var — so that variable is no longer used anywhere here.
+set_tracing_disabled(not get_settings().openai_telemetry)
 
 
 def _configure_openai() -> None:
@@ -72,7 +73,9 @@ def _configure_openai() -> None:
     """
     settings = get_settings()
     if settings.openai_api_key:
-        set_default_openai_key(settings.openai_api_key, use_for_tracing=False)
+        # use_for_tracing=True or the trace exporter has no key and every upload fails
+        # silently — tracing "on" would then be indistinguishable from off.
+        set_default_openai_key(settings.openai_api_key, use_for_tracing=True)
     if settings.openai_org_id:
         # The SDK's lazy client reads this from the environment; there is no setter for it.
         os.environ.setdefault("OPENAI_ORG_ID", settings.openai_org_id)
@@ -101,7 +104,7 @@ def model_settings(reasoning_effort: str | None = None) -> ModelSettings:
         verbosity="low",
         timeout=90.0,  # per model-call attempt. v1 had none and ate 600s read timeouts twice.
         include_usage=True,  # v1 never recorded a single token count.
-        store=False,
+        store=get_settings().openai_telemetry,  # the Logs page half of openai_telemetry
         parallel_tool_calls=True,
     )
 

@@ -79,13 +79,10 @@ FROM python:3.13-slim AS runtime
 # LOG_LEVEL     chatkit/logger.py attaches NO handler unless this is set, so every
 #               swallowed respond() traceback would go nowhere. .env overrides it.
 # PYTHONUNBUFFERED  otherwise logs arrive in 8 KB chunks long after the events.
-# OPENAI_AGENTS_DISABLE_TRACING  v1 shipped 5,482 trace batches offsite with zero
-#               consumers, including customer product descriptions (D32).
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     TZ=UTC \
     LOG_LEVEL=INFO \
-    OPENAI_AGENTS_DISABLE_TRACING=1 \
     PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /srv
