@@ -34,9 +34,21 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 
   const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
 
-  if (response.status === 401 || response.status === 403) {
+  // 401 ONLY. A 403 here comes from `require_same_origin` — the Origin header did not match
+  // PUBLIC_BASE_URL — which is a configuration or deployment problem, not an expired session.
+  // Sending it to /login produced the worst possible loop: in public mode that page correctly
+  // says «входити не потрібно», so the user was bounced to a screen telling them there was
+  // nothing to do there, with no way forward. Surface it instead.
+  if (response.status === 401) {
     redirectToLogin();
     throw new ApiError(response.status, "Сесія завершилася. Увійдіть знову.");
+  }
+  if (response.status === 403) {
+    throw new ApiError(
+      response.status,
+      "Запит відхилено (перевірка джерела). Відкрийте застосунок за адресою, налаштованою " +
+        "в PUBLIC_BASE_URL.",
+    );
   }
   return response;
 }
