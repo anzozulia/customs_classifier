@@ -365,9 +365,7 @@ def verify(cases: list[GoldenCase], index: TariffIndex) -> Report:
         if case.expect_heading:
             heading = case.expect_heading
             if not re.fullmatch(r"\d{4}", heading):
-                report.failures.append(
-                    f"{where}: expect_heading {heading!r} is not 4 digits"
-                )
+                report.failures.append(f"{where}: expect_heading {heading!r} is not 4 digits")
             elif heading not in index.categories:
                 report.failures.append(
                     f"{where}: expect_heading {heading} is not a category in the tariff"

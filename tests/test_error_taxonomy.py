@@ -70,9 +70,7 @@ def test_a_throughput_429_and_a_quota_429_are_different_problems() -> None:
     retry vs. stop and go add money. Splitting them is the point of matching on the message."""
     response = httpx.Response(429, request=_REQUEST)
 
-    throttled = RateLimitError(
-        "Rate limit reached for gpt-5.6-terra", response=response, body=None
-    )
+    throttled = RateLimitError("Rate limit reached for gpt-5.6-terra", response=response, body=None)
     assert classify_error(throttled) == "rate_limited"
     assert is_retryable("rate_limited") is True
 

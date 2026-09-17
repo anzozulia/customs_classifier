@@ -84,8 +84,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     verb = "ingested" if result.created else "already present"
-    print(f"dataset {result.dataset_id} {verb}: {result.node_count:,} nodes, "
-          f"{result.terminal_count:,} terminals, sha256 {result.sha256}")
+    print(
+        f"dataset {result.dataset_id} {verb}: {result.node_count:,} nodes, "
+        f"{result.terminal_count:,} terminals, sha256 {result.sha256}"
+    )
     if result.activated:
         print("activated")
     return 0

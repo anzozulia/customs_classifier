@@ -1,0 +1,244 @@
+# UKTZED v2 — production deploy. Master only.
+#
+# Build here, pull there. The VPS never builds: `npm ci` + a Vite bundle + a full pip
+# resolve (which includes a git clone of chatkit-python) is minutes of CPU and enough RAM
+# to OOM a small box mid-deploy. A `docker pull` of a prebuilt layer set is seconds, and
+# tagging every build `sha-<short>` is what makes rollback a one-line operation instead of
+# a rebuild of a commit you have already moved past.
+#
+# ---------------------------------------------------------------------------------------
+# THE CI GATE — why workflow_run and not a reusable-workflow call
+# ---------------------------------------------------------------------------------------
+# The requirement is absolute: a failing CI must never deploy. Two ways to get it.
+#
+#   (a) workflow_run — this file. CI runs ONCE for the push to master; this workflow wakes
+#       up when that run completes and refuses to do anything unless
+#       `conclusion == 'success'`. Every job below sits behind that `if`.
+#
+#   (b) `uses: ./.github/workflows/ci.yml` as a job here, with `needs: [ci]`. One job graph,
+#       the gate is a `needs:` edge, arguably harder to misread.
+#
+# (a) is chosen because ci.yml ALREADY triggers on `push: branches: [master]` — the
+# requirement says so — and (b) would therefore run every lint, test, eval, web and build
+# job a second time against the identical commit. Same answer, twice the runner minutes,
+# twice the wall clock before anything ships. The `conclusion == 'success'` guard gives the
+# same guarantee for free.
+#
+# The cost of (a), stated plainly so nobody has to rediscover it: `github.sha` in a
+# workflow_run event is the tip of the DEFAULT branch, not the commit that was tested.
+# Every checkout and every tag below therefore uses `github.event.workflow_run.head_sha`.
+# Getting that wrong deploys the wrong commit and nothing complains.
+name: deploy
+
+on:
+  workflow_run:
+    workflows: ["ci"] # must match `name:` in ci.yml exactly
+    types: [completed]
+    branches: [master]
+
+# Never two deploys on one VPS at once, and never cancel one halfway: a cancelled run
+# leaves the stack part-recreated with no rollback step having fired. Queue instead.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write # GHCR push, via the built-in GITHUB_TOKEN. No PAT is involved here.
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # publish — build the image once and push it to GHCR.
+  # ---------------------------------------------------------------------------
+  publish:
+    name: build and push to GHCR
+    # THE GATE. `conclusion` is 'success' only if every ci.yml job passed; 'failure',
+    # 'cancelled', 'timed_out' and 'action_required' all stop here.
+    # The `event == 'push'` half matters too: workflow_run also fires for CI runs started
+    # by a pull_request, and `branches: [master]` filters on the HEAD branch of that run,
+    # which for a PR is the source branch. Without this, a PR opened from a branch that
+    # happened to be called master would deploy.
+    # NOTE the indentation: in a YAML folded scalar a MORE-indented continuation line keeps
+    # its newline instead of folding to a space, which would put a literal "\n" inside the
+    # ${{ }}. Both lines sit at the same column so this folds into one expression.
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push' }}
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # NOT github.sha — see the header. This is the commit CI actually went green on.
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: compute image name and tag
+        id: meta
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Docker refuses an uppercase repository component, and a GitHub org or repo name
+          # is free to contain one. Lowercase it rather than depending on nobody ever
+          # renaming the repo to something with a capital in it.
+          image="ghcr.io/$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')"
+          tag="sha-${HEAD_SHA:0:7}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag"     >> "$GITHUB_OUTPUT"
+          echo "Building $image:$tag"
+
+      - uses: docker/setup-buildx-action@v3
+
+      # The built-in token, not a PAT. `permissions: packages: write` above is what makes it
+      # able to push, and it expires when the job ends. The VPS cannot use this token — it
+      # needs its own read-only PAT; see CICD.md step D.
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # Two tags, two jobs. `sha-<short>` is the immutable one the VPS is pinned to and
+          # the one rollback names. `latest` is a convenience for a human doing a manual
+          # `docker pull` — deploy.sh never uses it, because "latest" cannot be rolled back
+          # to anything.
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:latest
+          # Surfaces at /healthz-adjacent reporting and in `docker inspect`. It is a public
+          # build stamp; the Dockerfile's only ARG, and deliberately never a secret.
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Push a plain image manifest rather than an OCI index carrying an attestation.
+          # The index form shows up in the GHCR UI as a second "unknown/unknown" platform
+          # and needs a newer containerd snapshotter to pull cleanly on the VPS. Nothing
+          # here consumes provenance, so there is no reason to pay for that.
+          provenance: false
+
+  # ---------------------------------------------------------------------------
+  # deploy — ship it to the VPS and prove it came back up.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: deploy to VPS
+    needs: publish
+    runs-on: ubuntu-latest
+    # Gives the repo a Deployments timeline and a place to hang a required reviewer or an
+    # IP allowlist later. GitHub creates it on first use; no setup needed.
+    environment: production
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      # VPS_PORT is optional. An unset secret is the empty string, which `||` treats as
+      # false, so this is 22 unless the VPS moved sshd.
+      VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+      IMAGE: ${{ needs.publish.outputs.image }}
+      TAG: ${{ needs.publish.outputs.tag }}
+      SSH_OPTS: -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: install the deploy key
+        # Through `env:`, never interpolated into the script body. A `${{ }}` inside `run:`
+        # is textual substitution into the shell source, so the secret's own characters
+        # would be parsed as shell.
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          # printf, not echo: the key is multi-line and must keep its trailing newline or
+          # OpenSSH rejects it with "invalid format". The secret is masked in the log.
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # Trust-on-first-use: the host key is learned from the host being connected to.
+          # A pinned key would be stronger; it is not used here because the secret list for
+          # this deploy is fixed at VPS_HOST / VPS_SSH_KEY / VPS_PORT.
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          test -s ~/.ssh/known_hosts
+
+      # The VPS has no checkout of this repo — it only ever pulls an image — so the three
+      # files that are NOT inside the image have to be copied every deploy. Without this a
+      # change to deploy.sh, the prod compose file or the Caddyfile would sit on master
+      # forever and never reach production.
+      #   deploy.sh                 the script the next two steps invoke
+      #   docker-compose.prod.yml   service definitions (image: from GHCR, no build:)
+      #   Caddyfile                 bind-mounted read-only into the caddy container
+      - name: sync deploy files
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          scp -P "$VPS_PORT" -i ~/.ssh/id_deploy $SSH_OPTS \
+            deploy/deploy.sh deploy/docker-compose.prod.yml Caddyfile \
+            "root@${VPS_HOST}:/root/uktzed-v2/"
+          # shellcheck disable=SC2086
+          ssh -p "$VPS_PORT" -i ~/.ssh/id_deploy $SSH_OPTS "root@${VPS_HOST}" \
+            'chmod 0755 /root/uktzed-v2/deploy.sh'
+
+      # deploy.sh does the real work and owns the rollback: it records the tag it is
+      # replacing, pulls, migrates, brings the stack up, waits for /readyz, and re-points to
+      # the previous tag by itself if readiness never arrives. This step fails when it does.
+      - name: deploy
+        id: deploy
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          ssh -p "$VPS_PORT" -i ~/.ssh/id_deploy $SSH_OPTS "root@${VPS_HOST}" \
+            "/root/uktzed-v2/deploy.sh deploy '${IMAGE}:${TAG}'"
+
+      # A second, independent look, after deploy.sh has already declared success. It re-runs
+      # the readiness probe and additionally checks that Caddy is answering, which the
+      # deploy step's internal wait does not cover — the app can be perfectly ready behind a
+      # proxy that is not listening.
+      - name: verify /readyz
+        id: verify
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          ssh -p "$VPS_PORT" -i ~/.ssh/id_deploy $SSH_OPTS "root@${VPS_HOST}" \
+            "/root/uktzed-v2/deploy.sh verify"
+
+      # Runs only when one of the two steps above actually failed — not when the key or the
+      # file sync failed, where there is nothing deployed to undo. `deploy.sh rollback` is
+      # idempotent: if deploy.sh already rolled itself back, this re-points to the same
+      # known-good tag and says so.
+      - name: ROLL BACK
+        if: ${{ failure() && (steps.deploy.conclusion == 'failure' || steps.verify.conclusion == 'failure') }}
+        run: |
+          set -euo pipefail
+          echo "::error title=Deploy failed::${IMAGE}:${TAG} did not come up — rolling back"
+          # shellcheck disable=SC2086
+          ssh -p "$VPS_PORT" -i ~/.ssh/id_deploy $SSH_OPTS "root@${VPS_HOST}" \
+            "/root/uktzed-v2/deploy.sh rollback"
+          {
+            echo "## Deploy FAILED — rolled back"
+            echo ""
+            echo "\`${IMAGE}:${TAG}\` never reported ready. The previous tag is serving again."
+            echo "Read the logs: \`ssh root@VPS 'cd /root/uktzed-v2 && ./deploy.sh compose logs --tail=200 app'\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: summary
+        if: success()
+        run: |
+          {
+            echo "## Deployed"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| image | \`${IMAGE}:${TAG}\` |"
+            echo "| commit | \`${{ github.event.workflow_run.head_sha }}\` |"
+            echo ""
+            echo "Ingest is NOT part of a deploy. Run it by hand when the tariff file changes:"
+            echo "\`ssh root@VPS '/root/uktzed-v2/deploy.sh ingest'\`"
+          } >> "$GITHUB_STEP_SUMMARY"

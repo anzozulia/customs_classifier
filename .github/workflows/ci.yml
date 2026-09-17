@@ -1,0 +1,229 @@
+# UKTZED v2 — continuous integration.
+#
+# Five jobs. The four cheap ones (lint, test, eval, web) start together and fail fast;
+# `image` waits for them, because a 5-minute Docker build that rebuilds the Vite bundle
+# and the whole pip venv is not worth spending on a branch with a ruff error in it.
+#
+# The name of this workflow is LOAD-BEARING. `.github/workflows/deploy.yml` triggers on
+# `workflow_run: workflows: ["ci"]`, matched by this exact string. Rename it here and
+# production silently stops deploying — the deploy workflow does not error, it just never
+# fires again. Change both files or neither.
+name: ci
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master, dev]
+
+# One CI run per ref. Superseded PR pushes are cancelled; pushes to master are NOT, because
+# a cancelled run has conclusion `cancelled`, deploy.yml only fires on `success`, and a
+# cancelled master build would therefore be a deploy that silently never happened.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # lint — the cheapest signal in the repo. ~20 seconds, no project install.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # Only ruff, not the project: linting does not need asyncpg, FastAPI or a git clone
+      # of chatkit-python, and skipping them is what makes this job report in under a
+      # minute while the others are still resolving wheels.
+      #
+      # The constraint mirrors `[dependency-groups] dev` in pyproject.toml, which pins ruff
+      # with `>=` and not `==`. That means a ruff release can turn this job red with no
+      # change to the code — the formatter's output is not stable across minor versions.
+      # The fix when that happens is to pin an exact version in pyproject.toml, not to
+      # loosen the check here.
+      - name: install ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install "ruff>=0.14.5"
+
+      - name: ruff check
+        run: ruff check .
+
+      # `make lint` runs exactly these two commands, so a green CI and a green laptop mean
+      # the same thing. If this step is red on a fresh clone, run `make fmt` and commit —
+      # it is a formatting diff, not a defect.
+      - name: ruff format --check
+        run: ruff format --check .
+
+  # ---------------------------------------------------------------------------
+  # test — the suite plus the hard coverage gate.
+  # ---------------------------------------------------------------------------
+  # The suite touches NO network, NO OpenAI API and NO Postgres: the SQL is exercised
+  # against SQLite through a fake pool (tests/test_store_isolation.py) and the HTTP layer
+  # through TestClient over a stub pool (tests/test_http_contract.py). So there are no
+  # service containers here and none are needed.
+  test:
+    name: pytest + coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # THE NON-OBVIOUS DEPENDENCY: `pip install -e .` shells out to `git clone` here.
+      # openai-chatkit is not on PyPI (the `chatkit` name there is a reserved 0.0.1 stub),
+      # so pyproject.toml installs it from `git+https://github.com/openai/chatkit-python`
+      # at a tag. GitHub-hosted runners ship git, so this works out of the box — but it is
+      # the reason a minimal or self-hosted runner image will fail this step with a bare
+      # "git: command not found" from inside pip, and it is also why the pip cache does not
+      # help much: pip re-clones a tag URL rather than reusing a cached wheel.
+      #
+      # `--group dev` is PEP 735 and needs pip >= 25.1, hence the upgrade first.
+      #
+      # pytest-cov is named HERE and not in the dev group on purpose: it is installed in
+      # the author's venv but nothing declares it, so a clean `--group dev` install does not
+      # get it and `pytest --cov` dies with "unrecognized arguments". A RANGE, not an `==`,
+      # so that the day it is added to pyproject.toml's dev group with an exact pin, pip
+      # resolves the two instead of refusing the install. Delete this argument then.
+      - name: install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . --group dev "pytest-cov>=7,<8"
+
+      # --cov-fail-under=80 is the gate. Coverage options (source, show_missing,
+      # relative_files) come from [tool.coverage] in pyproject.toml, so this command and a
+      # local `pytest --cov=app` measure the same denominator.
+      - name: pytest
+        run: pytest -q --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+      # `if: always()` so a coverage FAILURE still uploads the report — the run that drops
+      # below the gate is precisely the one whose line-by-line numbers you want to read.
+      - name: upload coverage.xml
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # eval — the offline golden-set verifier.
+  # ---------------------------------------------------------------------------
+  # `make eval-verify` is `python evals/build_golden.py`: it looks every `expect_code` in
+  # evals/golden/*.yaml up in the committed data/uktzed_hierarchical.json through the same
+  # `app.tariff.ingest.prepare` the Postgres ingest uses, and fails if a code does not exist
+  # or is not terminal. No API key, no database, no model call — which is exactly why it
+  # belongs in CI and `make eval` (55 live API calls) does not.
+  #
+  # What it prevents: a golden set whose ground truth was invented. That reports a number,
+  # the number looks like accuracy, and it measures nothing.
+  eval:
+    name: golden set (offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # Needs the app package (for app.tariff.ingest) and the dev group (for pyyaml — the
+      # golden set is YAML and nothing in `dependencies` reads YAML). Same git requirement
+      # as the test job.
+      - name: install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . --group dev
+
+      # Through make, not `python evals/build_golden.py`, so CI runs the same target the
+      # author runs. The target calls bare `python` — which exists here because
+      # actions/setup-python puts it on PATH, and does NOT exist on a bare macOS shell
+      # where only `python3` is present.
+      - name: make eval-verify
+        run: make eval-verify
+
+  # ---------------------------------------------------------------------------
+  # web — the SPA must typecheck and bundle.
+  # ---------------------------------------------------------------------------
+  web:
+    name: tsc + vite build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # `npm ci`, never `npm install`: it fails outright if package-lock.json is missing or
+      # out of step with package.json, which is the whole reason to use it. The lockfile is
+      # committed.
+      - name: npm ci
+        run: npm ci
+
+      # `npm run build` is already `tsc --noEmit && vite build`, so this runs tsc twice.
+      # That is deliberate and costs a few seconds: a type error reported by its own step
+      # reads as a type error in the job list, instead of being buried in the tail of a
+      # build log next to a Rollup stack trace.
+      - name: tsc --noEmit
+        run: npx tsc --noEmit
+
+      - name: vite build
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # image — proves the Dockerfile still builds. Build only, never push.
+  # ---------------------------------------------------------------------------
+  # Skipped on a push to master, because deploy.yml builds the same image there and pushes
+  # it to GHCR — building it twice for one commit would double the slowest job in the repo
+  # and produce a throwaway. It still runs on pull requests and on pushes to dev, which is
+  # where a broken Dockerfile should surface: on master the first thing that would notice
+  # is the deploy.
+  image:
+    name: docker build
+    if: ${{ github.event_name == 'pull_request' || github.ref_name != 'master' }}
+    # The expensive job waits for the cheap ones. A ruff error, a failing test or a type
+    # error in the SPA all short-circuit this before it spends five minutes on npm ci,
+    # a Vite bundle and a full pip resolve inside the builder.
+    needs: [lint, test, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Same GitHub Actions layer cache deploy.yml writes to, so a PR build warms the cache
+      # that the master build then reuses.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          # The multi-stage build (node -> pybuild -> runtime) needs git in the pybuild
+          # stage for the same chatkit reason as the test job; the Dockerfile installs it
+          # itself, so nothing is needed from the runner here.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            APP_VERSION=ci-${{ github.sha }}

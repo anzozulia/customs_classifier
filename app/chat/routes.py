@@ -61,9 +61,7 @@ async def _guarded(result: StreamingResult) -> AsyncIterator[bytes]:
         async for chunk in result:
             yield chunk
     except NotFoundError:
-        yield _frame(
-            ErrorEvent(code="custom", message="Розмову не знайдено.", allow_retry=False)
-        )
+        yield _frame(ErrorEvent(code="custom", message="Розмову не знайдено.", allow_retry=False))
     except Exception as exc:  # the last place anything can be logged at all
         error_class = classify_error(exc)
         logger.exception("chatkit stream failed: error_class=%s", error_class)

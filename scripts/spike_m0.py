@@ -109,9 +109,7 @@ _GROUPS = [
     _summary("85", "group", _G85, _P85, False),
 ]
 _CATEGORIES = [
-    _summary(
-        "8516", "category", "Електричні водонагрівачі", f"{_P85}{_SEP}Водонагрівачі", False
-    ),
+    _summary("8516", "category", "Електричні водонагрівачі", f"{_P85}{_SEP}Водонагрівачі", False),
     _summary("8517", "category", _H8517, _P8517, False),
 ]
 _TERMINALS = {
@@ -220,9 +218,7 @@ class SpikeTariff:
 
     async def resolve(self, code: str) -> NodeDetail | None:
         if code in _TERMINALS:
-            return _detail(
-                _TERMINALS[code], child_count=0, ancestors=["16", "85", "8517"], depth=4
-            )
+            return _detail(_TERMINALS[code], child_count=0, ancestors=["16", "85", "8517"], depth=4)
         for row in (*_GROUPS, *_CATEGORIES):
             if row.code == code:
                 return _detail(row, child_count=2, ancestors=["16"], depth=1)
@@ -303,9 +299,7 @@ class MemoryStore(Store[RequestContext]):
                 return
         rows.append(item)
 
-    async def load_item(
-        self, thread_id: str, item_id: str, context: RequestContext
-    ) -> ThreadItem:
+    async def load_item(self, thread_id: str, item_id: str, context: RequestContext) -> ThreadItem:
         for existing in self.items.get(thread_id, []):
             if existing.id == item_id:
                 return existing
@@ -392,8 +386,10 @@ async def run_spike() -> int:
     )
     await store.add_thread_item(thread.id, user_message, context)
 
-    print(f"model={settings.model} effort={settings.reasoning_effort} "
-          f"window={settings.history_window_items} max_repairs={settings.max_repairs}")
+    print(
+        f"model={settings.model} effort={settings.reasoning_effort} "
+        f"window={settings.history_window_items} max_repairs={settings.max_repairs}"
+    )
     print("streaming…\n")
 
     events: list[tuple[str, str]] = []
@@ -414,13 +410,9 @@ async def run_spike() -> int:
     elapsed = (datetime.now() - started).total_seconds()
     ledger = context.ledger
     tool_names = [call.tool_name for call in ledger.calls]
-    rejected = [
-        c for c in ledger.calls if c.tool_name == "emit_classification" and c.error
-    ]
+    rejected = [c for c in ledger.calls if c.tool_name == "emit_classification" and c.error]
     accepted = [
-        call
-        for call in ledger.calls
-        if call.tool_name == "emit_classification" and not call.error
+        call for call in ledger.calls if call.tool_name == "emit_classification" and not call.error
     ]
     thoughts = [e for e in events if "thought" in e[1] or "reasoning" in e[1]]
     progress = [e for e in events if e[0] == "progress_update"]
@@ -576,8 +568,10 @@ async def run_forced_rejection() -> int:
     print("=" * 110)
     verdict_fired = "PASS" if fired["n"] == 1 else "FAIL"
     print(f"{'forced rejection fired'.ljust(54)}  {verdict_fired:<6}  n={fired['n']}")
-    print(f"{'model repaired and still answered'.ljust(54)}  {'PASS' if answered else 'FAIL':<6}  "
-          f"assistant_message={answered}")
+    print(
+        f"{'model repaired and still answered'.ljust(54)}  {'PASS' if answered else 'FAIL':<6}  "
+        f"assistant_message={answered}"
+    )
     print("=" * 110)
     print(
         "D13 verdict: "

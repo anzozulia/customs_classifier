@@ -58,9 +58,7 @@ def upgrade() -> None:
         sa.Column("sha256", sa.CHAR(64), nullable=False, unique=True),
         sa.Column("node_count", sa.Integer(), nullable=False),
         sa.Column("terminal_count", sa.Integer(), nullable=False),
-        sa.Column(
-            "is_active", sa.Boolean(), nullable=False, server_default=sa.text("FALSE")
-        ),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("FALSE")),
         sa.Column(
             "ingested_at",
             sa.TIMESTAMP(timezone=True),

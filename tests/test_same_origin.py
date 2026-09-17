@@ -37,9 +37,7 @@ def _origins_for(base_url: str, monkeypatch: pytest.MonkeyPatch) -> frozenset[st
 
 
 @pytest.mark.parametrize("configured", ["http://localhost:8000", "http://127.0.0.1:8000"])
-def test_loopback_aliases_are_one_origin(
-    configured: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_loopback_aliases_are_one_origin(configured: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """THE regression: whichever loopback spelling is configured, the others still work."""
     origins = _origins_for(configured, monkeypatch)
     assert "http://localhost:8000" in origins

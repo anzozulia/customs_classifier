@@ -1,4 +1,3 @@
-
 # the en dash are correct typography here, not Latin look-alikes; pyproject pins ruff's
 # defaults (no allowed-confusables), so the exemption is declared per file.
 """The check v1 never had.
@@ -66,9 +65,7 @@ async def validate_code(repo: TariffRepo, code: str) -> CodeStatus:
     return status
 
 
-async def validate_and_resolve(
-    repo: TariffRepo, code: str
-) -> tuple[CodeStatus, NodeDetail | None]:
+async def validate_and_resolve(repo: TariffRepo, code: str) -> tuple[CodeStatus, NodeDetail | None]:
     """`validate_code` plus the row, because every caller needs both.
 
     The row is what the answer is rendered from: `full_path` and `description` are ALWAYS
@@ -91,6 +88,4 @@ def message_for(status: CodeStatus, code: str, detail: NodeDetail | None = None)
     Lives here rather than in the tool so that the wording and the condition cannot drift
     apart — v1's rules and its checks were in different files and disagreed.
     """
-    return _MESSAGES[status].format(
-        code=code, child_count=detail.child_count if detail else 0
-    )
+    return _MESSAGES[status].format(code=code, child_count=detail.child_count if detail else 0)
