@@ -15,6 +15,21 @@ Replace these throughout:
 
 ---
 
+## This repository
+
+    git@github.com:anzozulia/customs_classifier.git   (PUBLIC)
+    default branch: master        CI also runs on: dev
+    image:          ghcr.io/anzozulia/customs_classifier
+
+`master` is protected by the ruleset **master protection**: no deletion, no force-push, and
+four required checks — `ruff`, `pytest + coverage`, `golden set (offline)`, `tsc + vite build`.
+A red CI cannot merge, and `deploy.yml` only wakes on a CI run whose conclusion is `success`.
+
+**Because the repository is public you can make the GHCR package public too, and then the VPS
+needs no registry credentials at all** — Step D becomes a single `docker pull` with no login.
+Keep the package private instead and Step D applies as written. Either is fine; the package's
+visibility is set on its own page, not the repository's, and a new package starts private.
+
 ## What the pipeline does
 
 ```
@@ -29,7 +44,7 @@ Replace these throughout:
             ▼
   ┌─────────────────────────────────────────────────────┐
   │ deploy.yml                                          │
-  │   1. docker build → push ghcr.io/<YOU>/<REPO>       │
+  │   1. docker build → push ghcr.io/anzozulia/customs_classifier       │
   │      tags: sha-<short7>  and  latest                │
   │   2. scp deploy.sh + docker-compose.prod.yml +      │
   │      Caddyfile to the VPS, then run deploy.sh       │
@@ -422,13 +437,13 @@ Watch **Actions**. Expect `ci` to go green, then a `deploy` run to start on its 
 Success looks like, in the deploy job log:
 
 ```
-Building ghcr.io/<you>/<repo>:sha-1a2b3c4
+Building ghcr.io/anzozulia/customs_classifier:sha-1a2b3c4
 ...
-=== deploy ghcr.io/<you>/<repo>:sha-1a2b3c4 (replacing <nothing>) ===
+=== deploy ghcr.io/anzozulia/customs_classifier:sha-1a2b3c4 (replacing <nothing>) ===
 waiting up to 180s for /healthz
 /healthz OK: HTTP 200 {"status":"ok"}
 the app is LIVE but not READY: the tariff has never been ingested on this box.
-=== deployed ghcr.io/<you>/<repo>:sha-1a2b3c4 (rollback target: none) ===
+=== deployed ghcr.io/anzozulia/customs_classifier:sha-1a2b3c4 (rollback target: none) ===
 ```
 
 That `LIVE but not READY` is correct and expected. `/readyz` checks for an ingested tariff
@@ -499,7 +514,7 @@ column is not. If a migration is what broke the old version, that is a deliberat
 To go back further than one step, deploy a specific tag by hand:
 
 ```bash
-ssh root@<VPS> '/root/uktzed-v2/deploy.sh deploy ghcr.io/<YOU>/<REPO>:sha-1a2b3c4'
+ssh root@<VPS> '/root/uktzed-v2/deploy.sh deploy ghcr.io/anzozulia/customs_classifier:sha-1a2b3c4'
 ```
 
 Tags are listed at `github.com/<YOU>/<REPO>/pkgs/container/<REPO>`.
