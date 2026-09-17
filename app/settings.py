@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     model: str = "gpt-5.6-terra"
     reasoning_effort: str = "low"
 
+    # Send agent traces to the OpenAI Traces dashboard AND let the Responses API retain each
+    # request (the Logs page). One switch for both: they are the two halves of "can I see
+    # this run on platform.openai.com". Off means nothing about a classification exists on
+    # OpenAI's side after the call returns — v1 uploaded 5,482 trace batches of customer
+    # product descriptions that nobody ever read. The app's own /history and the back-office
+    # dashboard record every turn regardless of this setting.
+    openai_telemetry: bool = True
+
     # ChatKit
     chatkit_domain_key: str = "domain_pk_localhost_dev"
 

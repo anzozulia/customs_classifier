@@ -55,13 +55,13 @@ fmt: ## autoformat and apply the safe lint fixes
 	ruff format . && ruff check --fix .
 
 spike: ## M0 smoke run — drives ClassifierServer.respond() against the real API, prints PASS/FAIL
-	OPENAI_AGENTS_DISABLE_TRACING=1 python scripts/spike_m0.py
+	OPENAI_TELEMETRY=false python scripts/spike_m0.py
 
 eval-verify: ## check every golden case against the tariff — offline, no API key, no database
 	python evals/build_golden.py
 
 eval: eval-verify ## full golden set (55 cases) through the real agent; exit 1 on a regression
-	OPENAI_AGENTS_DISABLE_TRACING=1 python -m evals.run
+	OPENAI_TELEMETRY=false python -m evals.run
 
 eval-fast: eval-verify ## pre-commit subset — 8 cases, all three outcomes (see EVAL_CASES)
-	OPENAI_AGENTS_DISABLE_TRACING=1 python -m evals.run --cases $(EVAL_CASES)
+	OPENAI_TELEMETRY=false python -m evals.run --cases $(EVAL_CASES)
