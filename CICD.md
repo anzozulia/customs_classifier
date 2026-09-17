@@ -15,6 +15,45 @@ Replace these throughout:
 
 ---
 
+## The target host — read this first
+
+The VPS at **116.203.136.84** is NOT a blank demo box. It already runs, behind its own nginx:
+
+    anzozulia.com · anzozulia.xyz · palletpacker · retreefy · momentumdemo
+    packerapi · airlineaisupport          — with real Let's Encrypt certificates
+    plus several unrelated Docker stacks, including another ChatKit demo
+
+**nginx owns :80 and :443.** The production stack therefore ships NO reverse proxy. An earlier
+revision of this deploy included a Caddy container binding those ports; it would have failed to
+start, and had it started it would have taken all seven sites offline. Nothing on this box may
+bind :80 or :443, and a deploy must never reload nginx.
+
+The topology is:
+
+    internet ──► nginx :443 ──► 127.0.0.1:8090 ──► app container
+                   │                                  └─ migrate (one-shot) ─► db (no published port)
+                   └─ /etc/nginx/sites-enabled/classifier.conf   installed BY HAND, once
+
+Host ports already taken: 8000, 8001, 8078, 8080, 5171, 6379. The app uses **8090**.
+
+Public hostname: **classifier.anzozulia.com** — DNS already resolves to the VPS.
+
+### Installing the vhost (one time, and the only manual nginx step)
+
+```bash
+scp deploy/nginx/classifier.anzozulia.com.conf \
+    root@116.203.136.84:/etc/nginx/sites-available/classifier.conf
+
+ssh root@116.203.136.84 'certbot certonly --webroot -w /var/www/certbot \
+    -d classifier.anzozulia.com --agree-tos -m you@anzozulia.com -n'
+
+ssh root@116.203.136.84 'ln -sf /etc/nginx/sites-available/classifier.conf \
+    /etc/nginx/sites-enabled/classifier.conf && nginx -t && systemctl reload nginx'
+```
+
+`nginx -t` before the reload is not optional here: a typo in this file would take the other
+seven sites down with it.
+
 ## This repository
 
     git@github.com:anzozulia/customs_classifier.git   (PUBLIC)

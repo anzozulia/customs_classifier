@@ -3,7 +3,7 @@
 # UKTZED v2 — the deploy script that runs ON THE VPS, as root, out of /root/uktzed-v2.
 #
 # It is copied here by .github/workflows/deploy.yml on every deploy, together with
-# docker-compose.prod.yml and the Caddyfile. Edit it in the repo, not on the box — a local
+# docker-compose.prod.yml. Edit it in the repo, not on the box — a local
 # edit is overwritten by the next deploy and leaves no trace of why.
 #
 # ---------------------------------------------------------------------------------------
@@ -119,7 +119,7 @@ save_state() {
 # ------------------------------------------------------------------------------- docker
 
 # Every compose call goes through here. --project-directory pins where `.env` and the
-# ./Caddyfile bind mount resolve from, so the script behaves identically whatever directory
+# bind mounts resolve from, so the script behaves identically whatever directory
 # it was invoked from.
 compose() {
   APP_IMAGE="$APP_IMAGE" APP_TAG="$APP_TAG" \
@@ -130,7 +130,6 @@ preflight() {
   [[ "${EUID}" -eq 0 ]] || die "run this as root; the whole deployment lives in ${ROOT_DIR}"
   [[ -f "$COMPOSE_FILE" ]] || die "missing ${COMPOSE_FILE} — the deploy workflow copies it there; see CICD.md step E"
   [[ -f "$ENV_FILE" ]] || die "missing ${ENV_FILE} — copy .env.example and fill it in; see CICD.md step E"
-  [[ -f "${ROOT_DIR}/Caddyfile" ]] || die "missing ${ROOT_DIR}/Caddyfile — the deploy workflow copies it there; see CICD.md step E"
   command -v docker >/dev/null 2>&1 || die "docker is not installed; see CICD.md step E"
   docker compose version >/dev/null 2>&1 || die "the docker compose v2 plugin is not installed; see CICD.md step E"
 }
@@ -173,22 +172,20 @@ PY
 readyz_probe() { http_probe /readyz; }
 healthz_probe() { http_probe /healthz; }
 
-# Caddy is the only container with published ports, and an app that is ready behind a proxy
-# that is not listening is still an outage. A request to 127.0.0.1:80 carries Host:
-# 127.0.0.1, which matches no site block, so Caddy answers 404 — that is expected and fine.
-# What is being tested is that SOMETHING answered on port 80, with no DNS and no TLS in the
-# way to make the result ambiguous.
+# The app publishes 127.0.0.1:8090 and the HOST nginx proxies to it. This stack does not own
+# the proxy, so what is verified here is OUR half: that the published port is answering. If
+# nginx were down every site on the box would be down, which is not this deploy's business and
+# not something it may roll back for.
 #
-# curl is NOT assumed. A minimal Ubuntu image can be without it, and a missing tool must
-# never be reported as "the proxy is down" — `verify` failing is what triggers the rollback
-# step in .github/workflows/deploy.yml, so that would roll back a perfectly healthy release
-# because a package was absent. bash can open the socket itself; a successful connect proves
-# something holds the published port, which is all this check claims.
-caddy_probe() {
+# curl is NOT assumed. A minimal image can be without it, and a missing tool must never be
+# reported as "the app is down" — `verify` failing is what triggers the rollback step in
+# .github/workflows/deploy.yml, so that would roll back a healthy release because a package was
+# absent. bash can open the socket itself; a successful connect proves something holds the port.
+published_port_probe() {
   if command -v curl >/dev/null 2>&1; then
-    curl -sS -o /dev/null --max-time 5 "http://127.0.0.1/" >/dev/null 2>&1
+    curl -sS -o /dev/null --max-time 5 "http://127.0.0.1:8090/healthz" >/dev/null 2>&1
   else
-    timeout 5 bash -c 'exec 3<>/dev/tcp/127.0.0.1/80' 2>/dev/null
+    timeout 5 bash -c 'exec 3<>/dev/tcp/127.0.0.1/8090' 2>/dev/null
   fi
 }
 
@@ -239,25 +236,11 @@ run_migrations() {
 }
 
 bring_up() {
-  log "bringing up the stack on ${APP_TAG}"
-  compose up -d --remove-orphans
-}
-
-# The Caddyfile is a read-only bind mount, and changing a bind-mounted file does NOT cause
-# compose to recreate the container — so a Caddyfile change would otherwise sit on disk,
-# unused, until the next unrelated restart. `caddy reload` validates the new config and
-# swaps it atomically; a bad config is REJECTED and the old one keeps serving, which is why
-# this can fail the deploy without taking the site down. It runs after the app is confirmed
-# ready, so a proxy-config mistake never triggers an application rollback.
-reload_caddy() {
-  if [[ -z "$(compose ps -q caddy 2>/dev/null || true)" ]]; then
-    log "caddy was not running — 'up' started it with the current Caddyfile, no reload needed"
-    return 0
-  fi
-  log "reloading the Caddyfile"
-  if ! compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
-    die "the Caddyfile was rejected. Caddy is still serving the PREVIOUS config, so the site is UP — but your proxy changes are not live. Fix the Caddyfile in the repo and push again."
-  fi
+  # No-op by design. :80 and :443 belong to the HOST nginx, which also serves several
+  # unrelated sites, so this stack ships no proxy and a deploy must never reload it.
+  # The vhost (deploy/nginx/) is installed and reloaded by hand, with `nginx -t` first,
+  # because a bad config here would take those other sites down too.
+  return 0
 }
 
 do_rollback() {
@@ -355,7 +338,9 @@ cmd_deploy() {
     log "  then:  ${ROOT_DIR}/deploy.sh compose exec app python -m app.cli create-user <name> --superuser"
   fi
 
-  reload_caddy
+  # No proxy reload: :80/:443 belong to the HOST nginx, which also serves several unrelated
+  # sites. Its vhost (deploy/nginx/) is installed and reloaded by hand, with `nginx -t` first,
+  # because a bad config would take those other sites down with it.
 
   log "=== deployed ${APP_IMAGE}:${APP_TAG} (rollback target: ${PREVIOUS_TAG:-none}) ==="
 }
@@ -386,10 +371,10 @@ cmd_verify() {
     healthz_probe || die "/healthz is not 200 either — the app is not serving at all"
   fi
 
-  if ! caddy_probe; then
-    die "nothing answered on 127.0.0.1:80 — the app is ready but caddy is not serving it, so the site is down from the outside"
+  if ! published_port_probe; then
+    die "nothing answered on 127.0.0.1:8090 — the container is up but its published port is not serving, so nginx has nothing to proxy to"
   fi
-  log "caddy is listening on :80"
+  log "the app is answering on 127.0.0.1:8090 (nginx proxies this)"
 
   # The only check that leaves the machine, and the only one that is a warning. It exits the
   # VPS and comes back to it, so a failure here can equally mean hairpin NAT, a DNS record
@@ -481,7 +466,7 @@ UKTZED v2 deploy — runs on the VPS, as root, from /root/uktzed-v2
 
   ./deploy.sh deploy <image>:<tag>   pull, migrate, up, wait for /readyz, roll back on failure
   ./deploy.sh rollback               re-point to PREVIOUS_TAG and bring it back up
-  ./deploy.sh verify                 /readyz + caddy, right now
+  ./deploy.sh verify                 /readyz + the published port, right now
   ./deploy.sh status                 what is deployed, what rollback would go to, container state
   ./deploy.sh ingest [file]          load the tariff — a DATA step, never automatic
   ./deploy.sh prune                  delete old image tags, keeping live + rollback target
