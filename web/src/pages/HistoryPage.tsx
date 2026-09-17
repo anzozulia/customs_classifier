@@ -70,9 +70,12 @@ export default function HistoryPage() {
     <div className="mx-auto h-full w-full max-w-5xl overflow-y-auto px-4 py-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-lg font-semibold tracking-tight">Історія класифікацій</h1>
-        <form className="ml-auto flex items-center gap-2" onSubmit={onSearch}>
+        <form
+          className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto"
+          onSubmit={onSearch}
+        >
           <input
-            className="field w-56"
+            className="field w-full min-w-0 sm:w-56"
             type="search"
             placeholder="пошук: плівка ПВХ"
             aria-label="Пошук в історії"

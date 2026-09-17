@@ -138,9 +138,9 @@ export default function UsersCard({ currentUsername }: { currentUsername: string
             ))}
           </div>
 
-          <form className="flex items-center gap-2" onSubmit={onSearch}>
+          <form className="flex w-full items-center gap-2 sm:w-auto" onSubmit={onSearch}>
             <input
-              className="field w-40"
+              className="field w-full min-w-0 sm:w-40"
               type="search"
               placeholder="ім'я"
               aria-label="Пошук користувача"
@@ -345,14 +345,14 @@ function PasswordForm({
 
   return (
     <form
-      className="mt-2 flex items-center gap-2"
+      className="mt-2 flex w-full flex-wrap items-center gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         if (password) onSubmit(password);
       }}
     >
       <input
-        className="field w-44"
+        className="field w-full min-w-0 sm:w-44"
         type="text"
         autoComplete="new-password"
         placeholder="новий пароль"

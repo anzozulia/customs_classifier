@@ -128,7 +128,7 @@ export default function AdminPage({ config }: { config: AppConfig }) {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-lg font-semibold tracking-tight">Адміністрування</h1>
         <span className="text-sm text-slate-500 dark:text-slate-400">{config.user?.username}</span>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-3">
           {refreshedAt && (
             <span className="hidden text-xs text-slate-400 dark:text-slate-500 sm:inline tabular-nums">
               оновлено {refreshedAt.toLocaleTimeString("uk-UA")}
