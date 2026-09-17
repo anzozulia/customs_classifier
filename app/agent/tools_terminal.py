@@ -272,37 +272,23 @@ _HEADLINE_CHARS: Final[int] = 80
 
 
 def _goods_description(full_path: str) -> str:
-    """The legal description of the code — which starts at the 4-digit HEADING.
+    """The description of the code, and the ONLY description shown. Starts at the HEADING.
 
-    A stored full_path is `section > chapter > heading > … > leaf`. The first two are filing
-    structure, not a description of the goods: section 16 alone is 200 characters of
-    «Машини, обладнання та механізми; …» that says nothing about a camera. Customs reads the
-    heading and the subdivisions under it, so that is what the answer shows.
+    There is no short label for a UKTZED code and two attempts to invent one both failed in
+    the browser. A code is a heading plus successive narrowings: the heading says what class
+    of goods it is, each later segment says which one. The deepest segment alone is a
+    DIFFERENTIA — «з бавовни» for a t-shirt, «інші» for 2,473 of 10,490 leaves — and means
+    nothing without what it narrows. Picking a clause out of the heading instead mislabelled a
+    camera as flashbulbs. So the whole chain is shown, once, where the label used to be.
+
+    What IS dropped is the section and the chapter. A stored full_path is
+    `section > chapter > heading > … > leaf`, and the first two are filing structure rather
+    than goods: section 16 alone is 200 characters of «Машини, обладнання та механізми; …»
+    that says nothing about a camera. A 10-digit code's legal description begins at the
+    4-digit heading.
     """
     segments = [seg.strip() for seg in full_path.split(PATH_SEPARATOR) if seg.strip()]
     return " → ".join(segments[2:] if len(segments) > 2 else segments)
-
-
-def _headline(full_path: str) -> str:
-    """A short label for the code: the deepest meaningful segment, TRUNCATED.
-
-    Truncated, never re-selected. An earlier version took the last semicolon clause on the
-    theory that a heading's final clause is its most specific one. It is — for heading 8525,
-    whose last clause really is «телевізійні камери, цифрові камери…». But heading 9006 reads
-    «Фотокамери (крім кінокамер); фотоспалахи та лампи-спалахи…», and a camera got labelled
-    FLASHBULBS. A heading enumerates several distinct goods and nothing in the text says which
-    one a given subdivision belongs to, so picking a clause is guessing. A prefix cannot
-    misattribute: it is the real text, just less of it.
-    """
-    segments = [seg.strip() for seg in full_path.split(PATH_SEPARATOR) if seg.strip()]
-    meaningful = [seg for seg in segments if seg.casefold() not in _RESIDUAL]
-    label = meaningful[-1] if meaningful else (segments[-1] if segments else "")
-    if not label:
-        return ""
-    if len(label) > _HEADLINE_CHARS:
-        cut = label[:_HEADLINE_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:—-")
-        label = f"{cut}…"
-    return label[:1].upper() + label[1:]
 
 
 def _breadcrumb(code: str) -> str:
@@ -342,9 +328,9 @@ def _answer_markdown(
             lines.append("")
         # Number first and alone, because it is the thing being copied into a declaration.
         lines += [f"### {format_code(item.code)}", ""]
-        headline = _headline(item.detail.full_path)
-        if headline:
-            lines += [f"**{headline}**", ""]
+        goods = _goods_description(item.detail.full_path)
+        if goods:
+            lines += [goods, ""]
         if item.status is CodeStatus.AMBIGUOUS:
             lines += [f"_{message_for(CodeStatus.AMBIGUOUS, item.code, item.detail)}_", ""]
 
@@ -360,13 +346,6 @@ def _answer_markdown(
             for a in alternatives
         ]
         lines.append("")
-
-    # The legal text ONCE, at the end, where it is reference rather than an obstacle — and
-    # from the heading down, not from the section.
-    for item in checked:
-        goods = _goods_description(item.detail.full_path)
-        if goods:
-            lines += ["**Повний опис позиції**", "", goods, ""]
 
     trail = _breadcrumb(checked[0].code) if checked else ""
     footer = trail or ""
