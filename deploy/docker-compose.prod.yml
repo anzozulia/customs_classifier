@@ -39,46 +39,12 @@ x-app-image: &app-image
   image: ${APP_IMAGE:?set APP_IMAGE — run deploy.sh, it exports it from deploy.state}:${APP_TAG:?set APP_TAG — run deploy.sh, it exports it from deploy.state}
 
 services:
-  # ---------------------------------------------------------------------------
-  # caddy — the only container with published ports. TLS, CSP, SSE passthrough.
-  # ---------------------------------------------------------------------------
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp" # HTTP/3
-    # `environment`, not `env_file`: the proxy has no business holding OPENAI_API_KEY.
-    # Caddy expands {$VAR} in the Caddyfile at config-load time.
-    environment:
-      UKTZED_DOMAIN: ${UKTZED_DOMAIN:-localhost}
-      ACME_EMAIL: ${ACME_EMAIL:-ops@example.com}
-    volumes:
-      # Copied fresh by every deploy. A changed Caddyfile does NOT restart this container —
-      # a bind mount is not a trigger for recreation — so deploy.sh issues an explicit
-      # `caddy reload` after `up`. Caddy validates before swapping, and keeps serving the
-      # old config if the new one is bad.
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data # ACME account key + issued certs — BACK THIS UP
-      - caddy_config:/config
-      - caddy_logs:/var/log/caddy
-    depends_on:
-      app:
-        condition: service_healthy
-    logging: *default-logging
+  # NOTE: there is no reverse proxy in this file. This app is deployed onto a HOST THAT
+  # ALREADY RUNS NGINX for several other sites, so TLS, HTTP->HTTPS and the public port
+  # belong to that nginx, not to this stack. The vhost lives in deploy/nginx/ and is
+  # installed once by hand; see CICD.md step E. A Caddy container here would try to bind
+  # :80 and :443 and take every other site on the box down with it.
 
-  # ---------------------------------------------------------------------------
-  # migrate — one-shot. Runs to completion before app starts, then exits.
-  # ---------------------------------------------------------------------------
-  # NEVER fold this into the app entrypoint: with --workers 2 two processes would race the
-  # same alembic_version row. If `upgrade head` exits non-zero, app never starts — which is
-  # the behaviour you want.
-  #
-  # deploy.sh runs this explicitly, as `compose run --rm migrate`, BEFORE bringing the app
-  # up, so a failed migration fails the deploy while the old app is still serving. The
-  # `up` that follows re-runs the service and `alembic upgrade head` is a no-op the second
-  # time.
   migrate:
     <<: *app-image
     restart: "no"
@@ -96,8 +62,12 @@ services:
     <<: *app-image
     restart: unless-stopped
     env_file: [.env]
-    # The absence of `ports:` is the precondition that makes --forwarded-allow-ips=* safe.
-    # Add a port here and you have created a client-IP spoofing hole.
+    # Loopback ONLY. The host nginx proxies to 127.0.0.1:8090; nothing off-box can reach
+    # this port, which is what keeps --forwarded-allow-ips=* safe — the only client that
+    # can set X-Forwarded-* is a process on this machine. Bind 0.0.0.0 here and that
+    # becomes a client-IP spoofing hole.
+    ports:
+      - "127.0.0.1:8090:8000"
     command:
       - uvicorn
       - app.main:app
@@ -182,6 +152,3 @@ services:
 # duplicate certs to 5 per registered domain per week). deploy.sh never runs `down`.
 volumes:
   pg_data:
-  caddy_data:
-  caddy_config:
-  caddy_logs:

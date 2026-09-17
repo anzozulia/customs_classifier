@@ -170,17 +170,18 @@ jobs:
 
       # The VPS has no checkout of this repo — it only ever pulls an image — so the three
       # files that are NOT inside the image have to be copied every deploy. Without this a
-      # change to deploy.sh, the prod compose file or the Caddyfile would sit on master
+      # change to deploy.sh or the prod compose file would sit on master
       # forever and never reach production.
       #   deploy.sh                 the script the next two steps invoke
       #   docker-compose.prod.yml   service definitions (image: from GHCR, no build:)
-      #   Caddyfile                 bind-mounted read-only into the caddy container
+      # The nginx vhost is NOT shipped here: :80/:443 belong to the host's own nginx,
+      # which serves other sites, and reloading it is a manual, reviewed step.
       - name: sync deploy files
         run: |
           set -euo pipefail
           # shellcheck disable=SC2086
           scp -P "$VPS_PORT" -i ~/.ssh/id_deploy $SSH_OPTS \
-            deploy/deploy.sh deploy/docker-compose.prod.yml Caddyfile \
+            deploy/deploy.sh deploy/docker-compose.prod.yml \
             "root@${VPS_HOST}:/root/uktzed-v2/"
           # shellcheck disable=SC2086
           ssh -p "$VPS_PORT" -i ~/.ssh/id_deploy $SSH_OPTS "root@${VPS_HOST}" \
