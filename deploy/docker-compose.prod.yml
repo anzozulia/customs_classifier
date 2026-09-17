@@ -1,0 +1,187 @@
+# UKTZED v2 — the PRODUCTION stack. This is the file that runs on the VPS, at
+# /root/uktzed-v2/docker-compose.prod.yml, and it is copied there by every deploy.
+#
+# It is docker-compose.yml with exactly one thing changed: `build:` is gone and `image:`
+# points at GHCR. Everything else — the migrate-before-app ordering, the healthchecks, the
+# absent `ports:` on app and db, the named volumes, the log caps, the 90-second stop grace —
+# is load-bearing and is reproduced verbatim. Read the comments in docker-compose.yml before
+# changing any of it; they explain what each one prevents.
+#
+# Do not run this by hand with a bare `docker compose`. Use deploy.sh, which sources
+# deploy.state first:
+#
+#     ./deploy.sh compose ps
+#     ./deploy.sh compose logs -f app
+#
+# It needs two files next to it, neither of which is inside the image:
+#   .env        secrets and config — chmod 600, root-owned, NEVER committed
+#   Caddyfile   bind-mounted read-only into the caddy container
+name: uktzed
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    # Without this a 60-second-streaming app fills the VPS disk and Postgres stops
+    # accepting writes. 10 MB x 5 per container is plenty to debug a bad deploy.
+    max-size: "10m"
+    max-file: "5"
+
+# app and migrate are the SAME image, pulled once.
+#
+# `:?` and not a default. A default here would mean a typo in deploy.state silently ships
+# `:latest`, or an empty image name, at the exact moment nobody is watching. Compose refuses
+# to do anything at all instead, and says which variable is missing. deploy.sh exports both.
+#
+# No `pull_policy:`. The tag is an immutable `sha-<short>`, so the default ("pull only if
+# the image is not local") is correct — and it is what makes a rollback work when GHCR is
+# unreachable or the read PAT has expired: the previous tag's layers are already on disk.
+x-app-image: &app-image
+  image: ${APP_IMAGE:?set APP_IMAGE — run deploy.sh, it exports it from deploy.state}:${APP_TAG:?set APP_TAG — run deploy.sh, it exports it from deploy.state}
+
+services:
+  # ---------------------------------------------------------------------------
+  # caddy — the only container with published ports. TLS, CSP, SSE passthrough.
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    # `environment`, not `env_file`: the proxy has no business holding OPENAI_API_KEY.
+    # Caddy expands {$VAR} in the Caddyfile at config-load time.
+    environment:
+      UKTZED_DOMAIN: ${UKTZED_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-ops@example.com}
+    volumes:
+      # Copied fresh by every deploy. A changed Caddyfile does NOT restart this container —
+      # a bind mount is not a trigger for recreation — so deploy.sh issues an explicit
+      # `caddy reload` after `up`. Caddy validates before swapping, and keeps serving the
+      # old config if the new one is bad.
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # ACME account key + issued certs — BACK THIS UP
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on:
+      app:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # migrate — one-shot. Runs to completion before app starts, then exits.
+  # ---------------------------------------------------------------------------
+  # NEVER fold this into the app entrypoint: with --workers 2 two processes would race the
+  # same alembic_version row. If `upgrade head` exits non-zero, app never starts — which is
+  # the behaviour you want.
+  #
+  # deploy.sh runs this explicitly, as `compose run --rm migrate`, BEFORE bringing the app
+  # up, so a failed migration fails the deploy while the old app is still serving. The
+  # `up` that follows re-runs the service and `alembic upgrade head` is a no-op the second
+  # time.
+  migrate:
+    <<: *app-image
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    env_file: [.env]
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # app — FastAPI + uvicorn. No published port: reachable only through caddy.
+  # ---------------------------------------------------------------------------
+  app:
+    <<: *app-image
+    restart: unless-stopped
+    env_file: [.env]
+    # The absence of `ports:` is the precondition that makes --forwarded-allow-ips=* safe.
+    # Add a port here and you have created a client-IP spoofing hole.
+    command:
+      - uvicorn
+      - app.main:app
+      - "--host=0.0.0.0"
+      - "--port=8000"
+      # Redundancy against a crash, not throughput — the workload is ~100% awaiting OpenAI.
+      # Each worker holds its own pool and its own parsed tariff tree; do not exceed 2-3 on
+      # a 2-vCPU box.
+      - "--workers=2"
+      # request.url.scheme must be https behind Caddy: we set Secure cookies and issue
+      # redirects off it.
+      - "--proxy-headers"
+      - "--forwarded-allow-ips=*"
+      # Caddy holds keep-alives to the upstream; uvicorn's 5s default closes them
+      # constantly. Cosmetic, not correctness.
+      - "--timeout-keep-alive=75"
+      # Unset means "wait forever", so one wedged stream blocks `compose down` forever.
+      # 75s lets a typical 60-80s classification finish and stays under the 90s
+      # stop_grace_period below, so uvicorn exits cleanly instead of being SIGKILLed.
+      - "--timeout-graceful-shutdown=75"
+      # The supervisor pings each worker every 0.5s and SIGKILLs one that fails to pong
+      # inside this window — destroying every in-flight stream in it with no grace.
+      # The default is 5s. If your pinned uvicorn rejects this flag ("No such option"),
+      # delete this line: it was verified against a newer uvicorn than the pin.
+      - "--timeout-worker-healthcheck=30"
+      # --limit-concurrency is deliberately NOT set: it answers 503, and a 5xx on a
+      # streaming op is retried 5x by the client (~25s of dead air and 5x the bill).
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # /healthz is liveness + nothing else. It deliberately does not call OpenAI and does
+      # not touch the database: an OpenAI outage or a Postgres blip must not make Docker
+      # restart-loop the container. Readiness (db + ingested tariff + effective model) is
+      # /readyz, which deploy.sh polls after every deploy.
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s # covers loading the 2.4 MB tariff tree at startup
+    # Docker's default is 10s. A redeploy would SIGKILL every in-flight 60-second
+    # classification — and a 5xx during the restart window is retried 5x.
+    stop_grace_period: 90s
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # db — Postgres 17. pg_trgm ships in the official image's contrib set.
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-uktzed}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Deterministic initdb; avoids surprises in text ordering for Ukrainian data.
+      # Read ONCE, at first boot. Changing it later does nothing to an existing pg_data.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    # NO `ports:`. v1 published 5432 to 0.0.0.0 with the default password; that is the
+    # single worst thing in its deployment and it is not repeated here.
+    # To poke at the database:   ./deploy.sh compose exec db psql -U postgres uktzed
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ escapes compose interpolation: this is the container's own environment.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+
+# Named, not bind-mounted, and the reason to be careful with `docker compose down -v`:
+# that flag destroys pg_data (every classification ever recorded, every user) and
+# caddy_data (the ACME account key and your certificates — Let's Encrypt rate-limits
+# duplicate certs to 5 per registered domain per week). deploy.sh never runs `down`.
+volumes:
+  pg_data:
+  caddy_data:
+  caddy_config:
+  caddy_logs:

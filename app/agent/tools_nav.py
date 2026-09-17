@@ -1,4 +1,3 @@
-
 # the en dash are correct typography here, not Latin look-alikes; pyproject pins ruff's
 # defaults (no allowed-confusables), so the exemption is declared per file.
 """Navigation tools — the tariff tree walk, one tool per level, plus search and resolve.
@@ -86,16 +85,14 @@ _EXPLAIN_TERMINAL = (
     "Перед видачею коду перевір, що всі ознаки товару узгоджуються з його повним описом."
 )
 _EXPLAIN_TRUNCATED = (
-    "Гілка велика, показано не всі рівні: вузли з \"згорнуто\": true мають нащадків, яких тут "
+    'Гілка велика, показано не всі рівні: вузли з "згорнуто": true мають нащадків, яких тут '
     "немає. Щоб побачити їх, виклич expand з кодом такого вузла."
 )
 _EXPLAIN_DEAD_END = (
     "Ця гілка порожня за побудовою (зарезервована). Це не помилка довідника. "
     "Повернись на рівень вище і перевір іншу гілку."
 )
-_EXPLAIN_GROUPS = (
-    "Це групи розділу. Обери групу і виклич list_categories_in_group з її кодом."
-)
+_EXPLAIN_GROUPS = "Це групи розділу. Обери групу і виклич list_categories_in_group з її кодом."
 _EXPLAIN_CATEGORIES = (
     "Це товарні позиції (4 цифри) групи. Обери позицію і виклич open_category з її кодом."
 )
@@ -279,7 +276,14 @@ async def list_groups_in_section(ctx: Ctx, section_code: str) -> NodeListResult:
                 explanation=_EXPLAIN_RETRY,
             )
         rows = await repo.list_groups_in_section(code)
-        path = await _breadcrumb(repo, code)
+        # NOT `_breadcrumb(repo, code)`. A section HAS no ancestors, and `repo.ancestry`
+        # derives the level from the code's LENGTH — where two digits always means a GROUP
+        # (repo.level_for_code). Asking for section 16 therefore returned GROUP 16's parent,
+        # so a listing of «Машини, обладнання та механізми» was labelled section 04,
+        # «Готові харчові продукти». That is the D19 collision the whole data layer exists to
+        # make unrepresentable, surviving in one decoration. Confirmed against the real
+        # dataset before this fix; pinned by test_tools_nav.py.
+        path: list[PathStep] = []
         _record_summaries(ledger, rows, rec.index)
         await _task(
             ctx, f"Розділ {code}", f"{_trail(path) or code} — {len(rows)} груп", "book-open"
@@ -295,8 +299,11 @@ async def list_groups_in_section(ctx: Ctx, section_code: str) -> NodeListResult:
     except Exception as exc:
         ledger.end_call(rec, error=repr(exc))
         return NodeListResult(
-            level="section", path=[], nodes=[],
-            error="Довідник недоступний.", explanation=_EXPLAIN_UNAVAILABLE,
+            level="section",
+            path=[],
+            nodes=[],
+            error="Довідник недоступний.",
+            explanation=_EXPLAIN_UNAVAILABLE,
         )
 
 
@@ -336,8 +343,11 @@ async def list_categories_in_group(ctx: Ctx, group_code: str) -> NodeListResult:
     except Exception as exc:
         ledger.end_call(rec, error=repr(exc))
         return NodeListResult(
-            level="group", path=[], nodes=[],
-            error="Довідник недоступний.", explanation=_EXPLAIN_UNAVAILABLE,
+            level="group",
+            path=[],
+            nodes=[],
+            error="Довідник недоступний.",
+            explanation=_EXPLAIN_UNAVAILABLE,
         )
 
 
@@ -365,7 +375,7 @@ async def _open(ctx: Ctx, tool_name: str, arg_name: str, raw: str) -> CategoryRe
             error=f"Коду '{code}' немає в довіднику.",
             explanation=(
                 (f"Ти зараз у гілці: {trail}. " if trail else "")
-                + f'Перевір код: доступні позиції групи можна отримати через '
+                + f"Перевір код: доступні позиції групи можна отримати через "
                 f'list_categories_in_group("{code[:2]}").'
             ),
         )

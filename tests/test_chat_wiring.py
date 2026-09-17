@@ -735,9 +735,7 @@ async def test_a_client_that_leaves_cancels_the_model_run_and_closes_the_record(
         await asyncio.Event().wait()
         yield None  # pragma: no cover - makes this an async generator
 
-    server = _server(
-        monkeypatch, items=[_user_message("плівка")], stream=_hanging_stream, run=run
-    )
+    server = _server(monkeypatch, items=[_user_message("плівка")], stream=_hanging_stream, run=run)
 
     task = asyncio.create_task(_drain(server, _user_message("плівка")))
     await asyncio.sleep(0.01)  # past begin_turn and into the hanging stream

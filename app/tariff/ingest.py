@@ -274,9 +274,7 @@ def check_invariants(nodes: list[IngestNode], shape: DatasetShape = EXPECTED) ->
         failures.append(f"{len(empty_paths)} empty full_path(s), e.g. {empty_paths[:5]}")
 
     broken_prefix = [
-        n.code
-        for n in nodes
-        if n.level == "code" and not n.code.startswith(n.ancestor_codes[-1])
+        n.code for n in nodes if n.level == "code" and not n.code.startswith(n.ancestor_codes[-1])
     ]
     if broken_prefix:
         failures.append(f"{len(broken_prefix)} code(s) do not extend their parent's code")

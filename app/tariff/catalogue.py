@@ -1,4 +1,3 @@
-
 # the en dash are correct typography here, not Latin look-alikes; pyproject pins ruff's
 # defaults (no allowed-confusables), so the exemption is declared per file.
 """P2 — the `{sections_catalogue}` block injected into the system prompt.

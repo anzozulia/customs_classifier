@@ -337,9 +337,9 @@ the YAML itself:
 ```python
 from evals.build_golden import DEFAULT_TARIFF, GoldenCase, TariffIndex, load_cases, verify
 
-cases = load_cases()                        # list[GoldenCase], filename order
-index = TariffIndex.load(DEFAULT_TARIFF)    # offline tariff lookup, no DB
-report = verify(cases, index)               # report.ok, report.failures, report.warnings
+cases = load_cases()  # list[GoldenCase], filename order
+index = TariffIndex.load(DEFAULT_TARIFF)  # offline tariff lookup, no DB
+report = verify(cases, index)  # report.ok, report.failures, report.warnings
 ```
 
 `evals/` is an implicit namespace package: the import works from the repo root, which is

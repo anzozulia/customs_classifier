@@ -63,3 +63,41 @@ allowed-confusables = ["і", "а", "у", "о", "б", "е", "с", "р", "х", "�
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+
+# ---------------------------------------------------------------------------- coverage
+# Defaults for `pytest --cov`, so the flag set is short and CI and a laptop measure the
+# SAME thing. CI runs the gate:
+#
+#     pytest -q --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+#
+# Deliberately NOT added to `[tool.pytest.ini_options] addopts`: coverage roughly doubles
+# the runtime of a 4-second suite, and the inner edit-test loop is run far more often than
+# CI is. CI passes the flags explicitly instead.
+#
+# pytest-cov itself is not declared in the `dev` group (it is installed in the local venv
+# but nothing requires it), so `.github/workflows/ci.yml` names it in the test job. Move it
+# into `[dependency-groups] dev` the next time that list is touched and drop it from there.
+[tool.coverage.run]
+source = ["app"]
+# Repo-relative paths in coverage.xml. Without this the uploaded artifact carries the
+# runner's absolute /home/runner/work/... paths and does not line up with the repo.
+relative_files = true
+# Statement coverage, not branch coverage. The 80% gate below was baselined against
+# statements; switching this to `true` adds every untaken branch to the denominator and
+# drops the measured number several points with no change to the code, so it cannot be
+# flipped without re-baselining --cov-fail-under at the same time.
+branch = false
+
+[tool.coverage.report]
+show_missing = true
+# Nothing is omitted. Every module under app/ ships in the runtime image, including
+# app/cli.py — which is the only way a user or a tariff dataset comes into existence, so
+# excusing it from measurement would hide the largest untested surface in the project.
+omit = []
+precision = 1
+exclude_also = [
+  # Import-time only, erased at runtime by `from __future__ import annotations`.
+  "if TYPE_CHECKING:",
+  # `python -m app.cli` enters through typer, never through this guard.
+  "if __name__ == .__main__.:",
+]

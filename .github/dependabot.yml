@@ -1,0 +1,99 @@
+# Dependency updates.
+#
+# Everything targets `dev`, not `master`. A push to master deploys to production, and a
+# dependabot PR merged into master would ship an unreviewed version bump straight to the
+# VPS. Landing on dev means the same CI runs, the change sits on a branch, and it reaches
+# production through the ordinary dev -> master pull request.
+#
+# Grouped, because five separate "bump @types/node" pull requests a week is how a person
+# learns to merge dependabot PRs without reading them.
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # GitHub Actions — the highest-value ecosystem here.
+  # ---------------------------------------------------------------------------
+  # ci.yml and deploy.yml pin to major tags (actions/checkout@v4), which float within the
+  # major. Dependabot is what surfaces the v4 -> v5 jumps, which do not arrive on their own
+  # and are the ones that break a workflow.
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # ---------------------------------------------------------------------------
+  # Python — reads [project] dependencies and [dependency-groups] from pyproject.toml.
+  # ---------------------------------------------------------------------------
+  # One thing it CANNOT see: `openai-chatkit @ git+https://github.com/openai/chatkit-python`.
+  # Dependabot does not track a direct git URL pinned to a tag, so a new chatkit-python
+  # release will never appear here. Watch that repo's tags by hand and bump the tag in
+  # pyproject.toml — it is the dependency most likely to need it, since the SDK is young.
+  #
+  # Runtime and dev are separated so a ruff or pytest bump never sits in the same PR as an
+  # asyncpg bump: one of those can only break CI, the other can break production.
+  - package-ecosystem: pip
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+    groups:
+      python-runtime:
+        dependency-type: production
+        patterns: ["*"]
+      python-dev:
+        dependency-type: development
+        patterns: ["*"]
+
+  # ---------------------------------------------------------------------------
+  # npm — the SPA. package-lock.json is committed, which is what `npm ci` needs.
+  # ---------------------------------------------------------------------------
+  # React 19 + the two @openai/chatkit packages are held OUT of the grouped PR on purpose.
+  # The chatkit web component is loaded from OpenAI's CDN at runtime and the npm package is
+  # the typed wrapper around it; a major bump there is a thing to read, not to rubber-stamp
+  # with eleven @types updates.
+  - package-ecosystem: npm
+    directory: /web
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "web"
+    groups:
+      web-minor:
+        patterns: ["*"]
+        exclude-patterns: ["react", "react-dom", "@openai/*"]
+        update-types: ["minor", "patch"]
+
+  # ---------------------------------------------------------------------------
+  # Docker base images — node:22-alpine and python:3.13-slim in the Dockerfile.
+  # ---------------------------------------------------------------------------
+  # Monthly: these are floating major tags that already receive patches without a commit
+  # here, so the only thing this catches is a major (python:3.13 -> 3.14), which is not a
+  # weekly event and is never a rubber stamp.
+  #
+  # It does NOT cover caddy:2-alpine or postgres:17 in docker-compose.yml and
+  # deploy/docker-compose.prod.yml — those are the `docker-compose` ecosystem, which is a
+  # separate entry and is newer than this file. Add it if compose image pins start drifting.
+  - package-ecosystem: docker
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "docker"

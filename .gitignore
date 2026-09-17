@@ -9,3 +9,8 @@ web/dist/
 .ruff_cache/
 docker_data/
 *.egg-info/
+
+# coverage output — `pytest --cov` writes these; CI uploads coverage.xml as an artifact
+.coverage
+coverage.xml
+htmlcov/

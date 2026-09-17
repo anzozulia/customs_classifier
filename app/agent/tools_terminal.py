@@ -1,4 +1,3 @@
-
 # the en dash are correct typography here, not Latin look-alikes; pyproject pins ruff's
 # defaults (no allowed-confusables), so the exemption is declared per file.
 """Terminal tools — the two ways a turn can end with an artefact.
@@ -513,9 +512,7 @@ async def emit_classification(
             return outcome
         # D25: description from the database, never from the model.
         clean_alternatives.append(
-            Alternative(
-                code=outcome.code, description=outcome.detail.full_path, reason=alt.reason
-            )
+            Alternative(code=outcome.code, description=outcome.detail.full_path, reason=alt.reason)
         )
 
     # E7 — a metric, not an error, precisely because the answer never uses the model's text.
@@ -642,6 +639,7 @@ def summarise_rejection(ack: Any) -> str:
         + (f"\n\n_Технічна причина:_ {detail}" if detail else "")
     )
 
+
 # The "one more product" affordance. A classification is a finished unit of work, and the
 # next product is a NEW conversation, not a follow-up turn — v1's users pressed /clear 449
 # times asking for exactly this boundary, 87% of them right after a delivered result.
@@ -681,4 +679,3 @@ async def _stream_new_classification_button(agent_ctx: UktzedContext) -> None:
         )
     except Exception:
         logger.exception("could not stream the new-classification button")
-

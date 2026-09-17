@@ -1,4 +1,3 @@
-
 # source file; the Cyrillic letters that ruff reads as Latin look-alikes are correct.
 """Invariants of the tariff snapshot, checked against the real JSON.
 
@@ -138,9 +137,7 @@ def test_prefix_integrity() -> None:
 
 def test_missing_intermediate_parents_are_not_invented() -> None:
     """3,236 ten-digit codes legitimately hang straight off the 4-digit category."""
-    orphans = [
-        n for n in nodes() if n.level == "code" and len(n.code) == 10 and n.depth == 3
-    ]
+    orphans = [n for n in nodes() if n.level == "code" and len(n.code) == 10 and n.depth == 3]
     assert len(orphans) == 3_236
     assert all(n.parent_key[0] == "category" for n in orphans)
 

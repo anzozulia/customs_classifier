@@ -189,6 +189,29 @@ model turn, a widget that renders.
 
 ---
 
+## CI/CD
+
+Every push and pull request to `master` or `dev` runs `.github/workflows/ci.yml`: **ruff**
+(check + format), **pytest with a hard `--cov-fail-under=80` gate** (currently 94.6%), the
+**offline golden-set verifier**, **tsc + vite build**, and a **docker build** (not on
+master, where the deploy builds the same image). No network, no OpenAI key and no Postgres
+are needed by the suite.
+
+A push to `master` that turns CI green then triggers `.github/workflows/deploy.yml`, which
+builds and pushes `ghcr.io/<you>/<repo>:sha-<short>`, copies `deploy/deploy.sh`,
+`deploy/docker-compose.prod.yml` and the `Caddyfile` to the VPS, and runs
+`deploy.sh deploy` there: pull → `alembic upgrade head` → `compose up` → wait for
+`/readyz` → **roll back to the previous tag automatically** if it never comes up. A red CI
+cannot deploy — every deploy job sits behind `workflow_run.conclusion == 'success'`.
+
+Ingest is never automatic: `./deploy.sh ingest` is an explicit data step.
+
+**Setting it up the first time — secrets, the deploy key, GHCR, the VPS, the first deploy —
+is [`CICD.md`](CICD.md), step by step.** Current state and what is still manual:
+[`CICD-STATUS.md`](CICD-STATUS.md).
+
+---
+
 ## Architecture summary
 
 ```
