@@ -309,8 +309,11 @@ def _describe(full_path: str) -> tuple[str, str]:
     # what the code IS, and the context line directly beneath says which position it narrows.
     # The alternative — promoting the heading when the narrowings are uninformative — bolded
     # 240 characters of enumeration for heading 8525 and buried the answer again.
-    specific = " → ".join(narrowings)
-    return specific[:1].upper() + specific[1:], heading
+    # Case is left exactly as stored. The database already holds narrowings as the
+    # mid-sentence fragments they are («з бавовни», «для приготування кави або чаю») and
+    # headings capitalised, which is correct for both roles here. Re-casing them in one place
+    # and un-casing them in another turned a whole heading into «машини, обладнання…».
+    return " → ".join(narrowings), heading
 
 
 def _breadcrumb(code: str) -> str:
@@ -349,15 +352,18 @@ def _answer_markdown(
             lines.append("---")
             lines.append("")
         # Number first and alone, because it is the thing being copied into a declaration.
-        lines += [f"### {format_code(item.code)}", ""]
+        # Code and narrowing on ONE heading line. Split across two lines the narrowing was a
+        # bold BODY fragment — visually smaller than the code above it and orphaned from the
+        # heading below, reading as a caption that lost its picture. «6109 10 00 00 — з
+        # бавовни» is a single answer and is set as one.
         specific, heading = _describe(item.detail.full_path)
+        title = format_code(item.code)
         if specific:
-            lines += [f"**{specific}**", ""]
+            title = f"{title} — {specific}"
+        lines += [f"### {title}", ""]
+        # The position, in ordinary body text: context, and clearly secondary to the line above.
         if heading:
-            digits = normalize_code(item.code)
-            position = digits[:4] if len(digits) == 10 else ""
-            label = f"Товарна позиція {position}" if position else "Товарна позиція"
-            lines += [f"{label}: {heading}", ""]
+            lines += [heading, ""]
         if item.status is CodeStatus.AMBIGUOUS:
             lines += [f"_{message_for(CodeStatus.AMBIGUOUS, item.code, item.detail)}_", ""]
 

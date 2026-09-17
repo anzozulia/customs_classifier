@@ -39,7 +39,9 @@ def test_the_narrowing_leads_and_the_heading_is_context() -> None:
     """Round 3: «З бавовни» names no goods, so it is never shown WITHOUT its heading — but it
     leads, because it is the part that identifies this code rather than its 40 siblings."""
     specific, heading = _describe(_path(SECTION, CHAPTER, HEADING_6109, "з бавовни"))
-    assert specific == "З бавовни"
+    # As stored: a narrowing is a mid-sentence fragment and the renderer no longer
+    # re-cases it — it is set after an em dash on the heading line.
+    assert specific == "з бавовни"
     assert heading == HEADING_6109
 
 
@@ -51,7 +53,7 @@ def test_a_long_heading_never_leads() -> None:
         "інші побутові електронагрівальні прилади"
     )
     specific, heading = _describe(_path(SECTION, CHAPTER, long_heading, "для приготування кави"))
-    assert specific == "Для приготування кави"
+    assert specific == "для приготування кави"
     assert heading == long_heading
 
 
@@ -59,7 +61,7 @@ def test_residual_narrowings_still_lead() -> None:
     """All-residual narrowings read oddly, but promoting the heading instead bolded 240
     characters of enumeration and buried the answer a second time."""
     specific, heading = _describe(_path(SECTION, CHAPTER, HEADING_9006, "інші", "інші"))
-    assert specific == "Інші → інші"
+    assert specific == "інші → інші"
     assert heading == HEADING_9006
 
 

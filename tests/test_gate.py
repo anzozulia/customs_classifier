@@ -35,9 +35,12 @@ from app.agent.tools_terminal import ClassifiedCode, emit_classification
 from app.context import RequestContext
 from app.settings import get_settings
 
+# The REAL separator (app.tariff.PATH_SEPARATOR is " > "). This fixture used "\u203a", which
+# no full_path in the database contains, so the whole string parsed as ONE segment and the
+# renderer was never exercised on a real path shape here.
 DB_FULL_PATH = (
-    "Машини, обладнання та механізми › Електричні машини, обладнання та їх частини › "
-    "Телефонні апарати, включаючи смартфони › смартфони"
+    "Машини, обладнання та механізми > Електричні машини, обладнання та їх частини > "
+    "Телефонні апарати, включаючи смартфони > смартфони"
 )
 MODEL_INVENTED_TEXT = "Смартфон преміального сегмента з титановим корпусом"
 
@@ -192,7 +195,14 @@ async def test_answer_text_comes_from_the_database_not_the_model() -> None:
     rendered = _streamed_text(agent_ctx)
 
     assert ack.ok is True
-    assert DB_FULL_PATH in rendered
+    # The invariant is WHOSE TEXT WINS, not how it is laid out. The renderer deliberately
+    # drops the section and the chapter (a 10-digit code's legal description begins at the
+    # 4-digit heading) and splits the rest into heading + narrowing, so asserting the whole
+    # stored string verbatim would pin the layout instead of the guarantee.
+    heading, _, narrowing = DB_FULL_PATH.rpartition(" > ")
+    heading = heading.rpartition(" > ")[2]
+    assert heading in rendered, "the heading must come from the database"
+    assert narrowing in rendered, "the narrowing must come from the database"
     assert MODEL_INVENTED_TEXT not in rendered
     assert "8517 13 00 00" in rendered  # format_code, at the render boundary, once
 
