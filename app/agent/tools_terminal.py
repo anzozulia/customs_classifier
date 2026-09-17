@@ -271,24 +271,46 @@ _RESIDUAL: Final[frozenset[str]] = frozenset({"інші", "інша", "інше"
 _HEADLINE_CHARS: Final[int] = 80
 
 
-def _goods_description(full_path: str) -> str:
-    """The description of the code, and the ONLY description shown. Starts at the HEADING.
+def _describe(full_path: str) -> tuple[str, str]:
+    """(what this code specifically is, the heading it sits in).
 
-    There is no short label for a UKTZED code and two attempts to invent one both failed in
-    the browser. A code is a heading plus successive narrowings: the heading says what class
-    of goods it is, each later segment says which one. The deepest segment alone is a
-    DIFFERENTIA — «з бавовни» for a t-shirt, «інші» for 2,473 of 10,490 leaves — and means
-    nothing without what it narrows. Picking a clause out of the heading instead mislabelled a
-    camera as flashbulbs. So the whole chain is shown, once, where the label used to be.
+    Three rounds of browser feedback produced this shape.
 
-    What IS dropped is the section and the chapter. A stored full_path is
-    `section > chapter > heading > … > leaf`, and the first two are filing structure rather
-    than goods: section 16 alone is 200 characters of «Машини, обладнання та механізми; …»
-    that says nothing about a camera. A 10-digit code's legal description begins at the
-    4-digit heading.
+    A stored full_path is `section > chapter > heading > … > leaf`. Section and chapter are
+    filing structure — section 16 is 200 characters of «Машини, обладнання та механізми; …»
+    that describes no goods — so the description begins at the 4-digit HEADING.
+
+    But leading with the heading is also wrong. Heading 8516 is a 400-character enumeration of
+    water heaters, hair dryers, curling tongs and irons, and a coffee machine sits under one
+    clause of it; heading 6109 is t-shirts and vests. What identifies the code is the NARROWING
+    below the heading — «для приготування кави або чаю», «з бавовни».
+
+    And the narrowing alone is not enough either: «з бавовни» names no goods, and 2,473 of
+    10,490 leaves are literally «інші». So both are returned, and the caller shows the
+    narrowing first and the heading as labelled context beneath it — the reader sees the
+    specific answer and can still see what position it sits in.
+
+    When every narrowing is residual there is nothing specific to lead with, so the heading
+    becomes the description and the context line is empty.
     """
     segments = [seg.strip() for seg in full_path.split(PATH_SEPARATOR) if seg.strip()]
-    return " → ".join(segments[2:] if len(segments) > 2 else segments)
+    if not segments:
+        return "", ""
+    below_section = segments[2:] if len(segments) > 2 else segments
+    if not below_section:
+        return segments[-1], ""
+
+    heading, *narrowings = below_section
+    if not narrowings:
+        # The code hangs straight off its heading; there is no narrowing to lead with.
+        return heading, ""
+
+    # Every narrowing, residual ones included. «Інші → інші» reads oddly as a lead, but it is
+    # what the code IS, and the context line directly beneath says which position it narrows.
+    # The alternative — promoting the heading when the narrowings are uninformative — bolded
+    # 240 characters of enumeration for heading 8525 and buried the answer again.
+    specific = " → ".join(narrowings)
+    return specific[:1].upper() + specific[1:], heading
 
 
 def _breadcrumb(code: str) -> str:
@@ -328,9 +350,14 @@ def _answer_markdown(
             lines.append("")
         # Number first and alone, because it is the thing being copied into a declaration.
         lines += [f"### {format_code(item.code)}", ""]
-        goods = _goods_description(item.detail.full_path)
-        if goods:
-            lines += [goods, ""]
+        specific, heading = _describe(item.detail.full_path)
+        if specific:
+            lines += [f"**{specific}**", ""]
+        if heading:
+            digits = normalize_code(item.code)
+            position = digits[:4] if len(digits) == 10 else ""
+            label = f"Товарна позиція {position}" if position else "Товарна позиція"
+            lines += [f"{label}: {heading}", ""]
         if item.status is CodeStatus.AMBIGUOUS:
             lines += [f"_{message_for(CodeStatus.AMBIGUOUS, item.code, item.detail)}_", ""]
 

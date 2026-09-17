@@ -15,7 +15,7 @@ successive narrowings, and the only honest label is the whole chain from the hea
 
 from __future__ import annotations
 
-from app.agent.tools_terminal import _breadcrumb, _goods_description
+from app.agent.tools_terminal import _breadcrumb, _describe
 
 SECTION = "Машини, обладнання та механізми; електротехнічне обладнання; їх частини"
 CHAPTER = "Електричні машини, обладнання та їх частини"
@@ -29,33 +29,53 @@ def _path(*segments: str) -> str:
 
 def test_the_section_and_chapter_are_dropped() -> None:
     """A 10-digit code's legal description begins at the 4-digit heading."""
-    goods = _goods_description(_path(SECTION, CHAPTER, HEADING_9006, "інші"))
-    assert SECTION not in goods
-    assert CHAPTER not in goods
-    assert goods.startswith("Фотокамери")
+    specific, heading = _describe(_path(SECTION, CHAPTER, HEADING_9006, "інші"))
+    assert SECTION not in specific and SECTION not in heading
+    assert CHAPTER not in specific and CHAPTER not in heading
+    assert heading == HEADING_9006
 
 
-def test_the_whole_chain_below_the_heading_survives() -> None:
-    """Round 3: the differentia alone says nothing, so it is never shown alone."""
-    goods = _goods_description(_path(SECTION, CHAPTER, HEADING_6109, "з бавовни"))
-    assert "Футболки" in goods, "the goods class must be present"
-    assert "з бавовни" in goods, "the narrowing must be present"
-    assert goods == f"{HEADING_6109} → з бавовни"
+def test_the_narrowing_leads_and_the_heading_is_context() -> None:
+    """Round 3: «З бавовни» names no goods, so it is never shown WITHOUT its heading — but it
+    leads, because it is the part that identifies this code rather than its 40 siblings."""
+    specific, heading = _describe(_path(SECTION, CHAPTER, HEADING_6109, "з бавовни"))
+    assert specific == "З бавовни"
+    assert heading == HEADING_6109
+
+
+def test_a_long_heading_never_leads() -> None:
+    """Round 4: heading 8516 enumerates water heaters, hair dryers and irons; a coffee machine
+    is one clause of it. Leading with that wall buried the answer."""
+    long_heading = (
+        "Електричні водонагрівачі акумулювальні або безінерційні; праски електричні; "
+        "інші побутові електронагрівальні прилади"
+    )
+    specific, heading = _describe(_path(SECTION, CHAPTER, long_heading, "для приготування кави"))
+    assert specific == "Для приготування кави"
+    assert heading == long_heading
+
+
+def test_residual_narrowings_still_lead() -> None:
+    """All-residual narrowings read oddly, but promoting the heading instead bolded 240
+    characters of enumeration and buried the answer a second time."""
+    specific, heading = _describe(_path(SECTION, CHAPTER, HEADING_9006, "інші", "інші"))
+    assert specific == "Інші → інші"
+    assert heading == HEADING_9006
 
 
 def test_a_heading_is_never_reduced_to_one_of_its_clauses() -> None:
     """Round 2: heading 9006 enumerates cameras AND flashbulbs. Nothing in the text says which
     one a subdivision belongs to, so no clause may be selected as 'the' label."""
-    goods = _goods_description(_path(SECTION, CHAPTER, HEADING_9006, "інші"))
-    assert goods.startswith("Фотокамери (крім кінокамер)")
-    assert not goods.startswith("фотоспалахи")
+    _, heading = _describe(_path(SECTION, CHAPTER, HEADING_9006, "інші"))
+    assert heading == HEADING_9006, "the heading is shown whole, never a clause of it"
 
 
-def test_a_short_path_is_not_truncated_into_nothing() -> None:
-    """A code hanging directly off its heading has only three segments; dropping two would
-    leave the leaf alone, which is the round-3 bug."""
-    goods = _goods_description(_path(SECTION, CHAPTER, HEADING_6109))
-    assert goods == HEADING_6109
+def test_a_code_hanging_straight_off_its_heading_has_no_context_line() -> None:
+    """Nothing narrows it, so the heading IS the description and repeating it would be the
+    duplication this whole rework removed."""
+    specific, heading = _describe(_path(SECTION, CHAPTER, HEADING_6109))
+    assert specific == HEADING_6109
+    assert heading == ""
 
 
 def test_the_breadcrumb_is_derived_from_the_code_not_from_a_path() -> None:
