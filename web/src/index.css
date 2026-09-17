@@ -51,6 +51,18 @@
       dark:focus-visible:ring-slate-100/20;
   }
 
+  /* A row inside the mobile menu. The header's icon-only controls become labelled rows
+     once they are in a panel with room for words, which is most of the point of moving
+     them there: «Почати заново» was a bare ⟳ glyph on a phone.
+     `py-3` is not cosmetic: it is what puts the row at 44px, the floor for a
+     reliable tap target. At py-2.5 these came out 40px. */
+  .menu-row {
+    @apply flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-left text-sm
+      font-medium text-slate-700 transition-colors hover:bg-slate-100
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15
+      dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-slate-100/20;
+  }
+
   .field {
     @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
       text-slate-900 outline-none placeholder:text-slate-400
