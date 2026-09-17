@@ -352,18 +352,17 @@ def _answer_markdown(
             lines.append("---")
             lines.append("")
         # Number first and alone, because it is the thing being copied into a declaration.
-        # Code and narrowing on ONE heading line. Split across two lines the narrowing was a
-        # bold BODY fragment — visually smaller than the code above it and orphaned from the
-        # heading below, reading as a caption that lost its picture. «6109 10 00 00 — з
-        # бавовни» is a single answer and is set as one.
+        lines += [f"### {format_code(item.code)}", ""]
+        # ONE description: heading → narrowings, whole, exactly once.
+        #
+        # Three earlier revisions also showed the narrowing SEPARATELY — as a bold label, then
+        # on the heading line. Both were the same mistake: «з бавовни» and «інші» say nothing
+        # by themselves, and the chain already ends with them. It was one fragment printed
+        # twice, the second time in a form that could not be read on its own.
         specific, heading = _describe(item.detail.full_path)
-        title = format_code(item.code)
-        if specific:
-            title = f"{title} — {specific}"
-        lines += [f"### {title}", ""]
-        # The position, in ordinary body text: context, and clearly secondary to the line above.
-        if heading:
-            lines += [heading, ""]
+        goods = " → ".join(part for part in (heading, specific) if part)
+        if goods:
+            lines += [goods, ""]
         if item.status is CodeStatus.AMBIGUOUS:
             lines += [f"_{message_for(CodeStatus.AMBIGUOUS, item.code, item.detail)}_", ""]
 
