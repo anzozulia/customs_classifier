@@ -76,7 +76,7 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
   return (
     <div className="flex h-full flex-col">
       <header className="flex-none border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex w-full max-w-5xl items-center gap-2 px-4 py-3 sm:gap-4">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-2 gap-y-2 px-4 py-3 sm:gap-x-4">
           {/* The wordmark and the first nav item now share a word, so they are separated by
               WEIGHT rather than by wording: «Класифікатор» is de-emphasised here so the eye
               lands on УКТЗЕД as the product name, while the nav below is uppercase and
@@ -85,7 +85,18 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
               Below `sm` the shared word is dropped entirely rather than shrunk: the nav pill
               beside it already says КЛАСИФІКАТОР, and the row now has to fit a demo marker
               too. A phone is the likeliest way a public visitor arrives, so the marker wins
-              the space over a word printed twice. */}
+              the space over a word printed twice.
+
+              That was not enough, and the row is now `flex-wrap`. A GUEST also carries the
+              «демо» badge — it has no `sm:` escape, deliberately — and on a 412 px phone
+              (Galaxy S24+) УКТЗЕД + the pill + ІСТОРІЯ + демо + two icon buttons come to
+              ~414 px. Nothing here can shrink: every label is `whitespace-nowrap`, so the
+              overflow had nowhere to go and `ml-auto` drove the right-hand cluster straight
+              across ІСТОРІЯ. Wrapping lets that cluster fall to a second line instead, and it
+              holds at 320 px as well as at 412 — rather than at whichever widths someone
+              remembered to check. Measuring this while signed in as a named user is what hid
+              it: only a guest renders the badge, so the authenticated header had ~42 px more
+              room and looked fine. */}
           <span className="flex items-baseline gap-1.5 text-sm">
             <span className="hidden font-normal text-slate-400 dark:text-slate-500 sm:inline">
               Класифікатор
@@ -98,7 +109,7 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
             className="hidden h-5 w-px flex-none bg-slate-200 sm:block dark:bg-slate-800"
           />
 
-          <nav className="flex min-w-0 items-center gap-0.5 sm:gap-1">
+          <nav className="flex flex-none items-center gap-0.5 sm:gap-1">
             {NAV.map((item) => (
               <NavLink
                 key={item.to}
@@ -119,7 +130,7 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex flex-none items-center gap-1">
             {isGuest ? (
               <span
                 className="flex items-center gap-2 pr-1"
