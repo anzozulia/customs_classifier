@@ -38,7 +38,7 @@ logger = logging.getLogger("uktzed.records")
 
 __all__ = ["MODEL_PRICES", "PRICING_VERSION", "ModelPrice", "price_usd"]
 
-PRICING_VERSION: Final[str] = "2026-09-16"
+PRICING_VERSION: Final[str] = "2026-09-17"
 """The price list these numbers came from. Bump it in the same commit that edits a price."""
 
 _PER_MTOK: Final = Decimal(1_000_000)
@@ -55,19 +55,21 @@ class ModelPrice:
 
 
 MODEL_PRICES: Final[dict[str, ModelPrice]] = {
-    # The default from app/settings.py.
-    "gpt-5.6-terra": ModelPrice(
-        input_per_mtok=Decimal("2.00"),
-        cached_input_per_mtok=Decimal("0.20"),
-        output_per_mtok=Decimal("12.00"),
-    ),
-    # The small sibling: a tenth of the price, same shape. Kept here because it is what an
-    # eval sweep or a cheap re-run would be pointed at.
-    "gpt-5.6-luna": ModelPrice(
-        input_per_mtok=Decimal("0.20"),
-        cached_input_per_mtok=Decimal("0.02"),
-        output_per_mtok=Decimal("1.20"),
-    ),
+    # ---- gpt-5.6: the current family, three tiers of the same shape ----------------------
+    # sol > terra > luna in both capability and price. terra is the default from settings.py
+    # and OpenAI's own named replacement for o4-mini (shutdown 2026-10-23).
+    "gpt-5.6-sol": ModelPrice(Decimal("4.00"), Decimal("0.40"), Decimal("20.00")),
+    "gpt-5.6-terra": ModelPrice(Decimal("2.00"), Decimal("0.20"), Decimal("12.00")),
+    "gpt-5.6-luna": ModelPrice(Decimal("0.20"), Decimal("0.02"), Decimal("1.20")),
+    # ---- gpt-5.5 -------------------------------------------------------------------------
+    "gpt-5.5": ModelPrice(Decimal("5.00"), Decimal("0.50"), Decimal("30.00")),
+    # -pro publishes no cached rate; cached input is billed at the full input rate, which is
+    # what a None would have to mean anyway. Stated, not guessed.
+    "gpt-5.5-pro": ModelPrice(Decimal("30.00"), Decimal("30.00"), Decimal("180.00")),
+    # ---- gpt-5.4 -------------------------------------------------------------------------
+    "gpt-5.4": ModelPrice(Decimal("2.50"), Decimal("0.25"), Decimal("15.00")),
+    "gpt-5.4-mini": ModelPrice(Decimal("0.75"), Decimal("0.075"), Decimal("4.50")),
+    "gpt-5.4-nano": ModelPrice(Decimal("0.20"), Decimal("0.02"), Decimal("1.25")),
 }
 
 

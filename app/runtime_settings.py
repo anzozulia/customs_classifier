@@ -4,7 +4,7 @@ Three keys, and deliberately only three:
 
     access_mode        'public' | 'private'    — the kill switch
     model              str                     — which OpenAI model runs a turn
-    reasoning_effort   'low' | 'medium' | 'high'
+    reasoning_effort   'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 `app/settings.py` stays the DEFAULT layer: env-backed, immutable for the life of the
 process, and the answer whenever `app_setting` has no row for a key. This module is the
@@ -60,7 +60,14 @@ log = logging.getLogger(__name__)
 
 RuntimeKey = Literal["access_mode", "model", "reasoning_effort"]
 AccessMode = Literal["public", "private"]
-ReasoningEffort = Literal["low", "medium", "high"]
+# Every value the Responses API accepts, per the reasoning guide. Some models support only
+# a SUBSET — an unsupported pairing is a 400 from the provider, which classify_error maps to
+# upstream_4xx and the user sees as a plain failure rather than a crash. We do not hard-code
+# per-model matrices here: they are undocumented per variant and would rot silently.
+# NOTE: this agent uses a hosted WebSearchTool, and OpenAI's web-search guide warns that
+# "none" degrades search quality. It is offered because the API offers it; the panel labels
+# it as discouraged rather than hiding a real capability.
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
 
 RUNTIME_KEYS: Final[tuple[RuntimeKey, ...]] = get_args(RuntimeKey)
 ACCESS_MODES: Final[tuple[AccessMode, ...]] = get_args(AccessMode)

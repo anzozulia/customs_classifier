@@ -683,7 +683,10 @@ def test_every_price_is_a_decimal() -> None:
         assert isinstance(price.input_per_mtok, Decimal)
         assert isinstance(price.cached_input_per_mtok, Decimal)
         assert isinstance(price.output_per_mtok, Decimal)
-        assert price.cached_input_per_mtok < price.input_per_mtok
+        # <= not <: a model may publish no cached rate at all (gpt-5.5-pro does not), and
+        # cached input is then billed at the full input rate. A cached rate ABOVE the
+        # input rate would still be a transcription error worth catching.
+        assert price.cached_input_per_mtok <= price.input_per_mtok
 
 
 def test_recorded_code_defaults_to_primary() -> None:
