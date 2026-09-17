@@ -109,7 +109,10 @@ export default function ChatKitPanel({
    */
   const chatFetch = useCallback<typeof fetch>(async (input, init) => {
     const response = await fetch(input, { ...init, credentials: "same-origin" });
-    if (response.status === 401 || response.status === 403) redirectToLogin();
+    // 401 only — see the note in lib/api.ts. A 403 is an Origin mismatch, and bouncing a
+    // public-mode visitor to a login page they do not need is a dead end; letting ChatKit
+    // surface the failed request at least says something happened.
+    if (response.status === 401) redirectToLogin();
     return response;
   }, []);
 

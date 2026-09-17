@@ -181,10 +181,31 @@ async def require_superuser(request: Request) -> CurrentUser:
     return _to_current_user(row)
 
 
+# http://localhost:8000 and http://127.0.0.1:8000 are DIFFERENT origins to a browser, and
+# a developer types whichever they happen to type. With only the configured one allowed, the
+# other produced a 403 on every POST — which the SPA then read as "log in", landing a public
+# visitor on a login page telling them they do not need to log in. Loopback aliases are
+# therefore treated as one origin.
+#
+# Scope is deliberately narrow: this ONLY applies when the configured host is itself loopback.
+# A real deployment (PUBLIC_BASE_URL=https://your.domain) gets exactly one allowed origin and
+# nothing is relaxed. Loopback cannot be reached by a third-party site's user anyway, so the
+# CSRF property this check exists for is untouched.
+_LOOPBACK_HOSTS: Final[frozenset[str]] = frozenset({"localhost", "127.0.0.1", "[::1]", "::1"})
+
+
 @lru_cache(maxsize=1)
 def allowed_origins() -> frozenset[str]:
     parts = urlsplit(get_settings().public_base_url)
-    return frozenset({f"{parts.scheme}://{parts.netloc}"})
+    scheme, netloc = parts.scheme, parts.netloc
+    origins = {f"{scheme}://{netloc}"}
+
+    host = (parts.hostname or "").lower()
+    if host in _LOOPBACK_HOSTS:
+        port = f":{parts.port}" if parts.port else ""
+        origins |= {f"{scheme}://{alias}{port}" for alias in ("localhost", "127.0.0.1", "[::1]")}
+
+    return frozenset(origins)
 
 
 def require_same_origin(request: Request) -> None:
