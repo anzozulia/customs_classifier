@@ -28,6 +28,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
 from app.admin.routes import router as admin_router
+from app.auth.deps import allowed_origins
 from app.auth.routes import router as auth_router
 from app.chat.routes import router as chat_router
 from app.chat.server import ClassifierServer
@@ -78,6 +79,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.server = ClassifierServer(store, tariff)
 
     logger.info("started: model=%s db=%s", settings.model, pool.get_max_size())
+    # M2: the one line that lets a deployer see the 403 trap before a visitor hits it. Lives
+    # here, not at import — uvicorn configures logging after the module loads, so an import-
+    # time logger.info is silently dropped (measured: it never reached `docker compose logs`).
+    logger.info("same-origin check accepts Origin in %s", sorted(allowed_origins()))
     try:
         yield
     finally:
@@ -94,25 +99,34 @@ def _session_secret(settings: Settings) -> str:
         return settings.session_secret
     if settings.is_production:
         raise RuntimeError("SESSION_SECRET is empty; refusing to sign cookies with nothing")
-    # M3 from the deploy audit. In production ChatKit verifies CHATKIT_DOMAIN_KEY against the
-    # OpenAI org allowlist and, on failure, UNMOUNTS the chat — the server sees nothing, both
-    # health checks stay green, and every visitor gets an empty card. The placeholder must
-    # therefore be a boot failure, not a runtime mystery.
-    if _settings.is_production and _settings.chatkit_domain_key in ("", "domain_pk_localhost_dev"):
+    logger.warning("SESSION_SECRET is empty: using an ephemeral key, every restart logs out")
+    return secrets.token_urlsafe(32)
+
+
+def refuse_misconfigured_production(settings: Settings) -> None:
+    """Boot-time guards for the two settings that fail SILENTLY in production.
+
+    Runs unconditionally at import — an earlier revision put this inside the empty-secret
+    fallback of `_session_secret`, after a `raise`, where it could never execute, and a
+    smoke test with the placeholder key booted green. Guards that only run when something
+    ELSE is already wrong are not guards.
+
+    M3: in production ChatKit verifies CHATKIT_DOMAIN_KEY against the OpenAI org allowlist
+    and, on failure, UNMOUNTS the chat. The server sees nothing, both health checks stay
+    green, and every visitor gets an empty card. The placeholder must be a boot failure.
+    """
+    if settings.is_production and settings.chatkit_domain_key in ("", "domain_pk_localhost_dev"):
         raise RuntimeError(
             "CHATKIT_DOMAIN_KEY is unset or still the localhost placeholder while "
             "PUBLIC_BASE_URL is https://; register the domain at platform.openai.com "
             "(org settings -> security -> domain allowlist) and set the real domain_pk_ key"
         )
-    # M2: the one line that lets a deployer see the 403 trap before a visitor hits it.
-    logger.info("same-origin check accepts Origin in %s", sorted(allowed_origins()))
-    logger.warning("SESSION_SECRET is empty: using an ephemeral key, every restart logs out")
-    return secrets.token_urlsafe(32)
 
 
 app = FastAPI(title="UKTZED classifier", lifespan=lifespan, docs_url=None, redoc_url=None)
 
 _settings = get_settings()
+refuse_misconfigured_production(_settings)
 app.add_middleware(
     SessionMiddleware,
     secret_key=_session_secret(_settings),

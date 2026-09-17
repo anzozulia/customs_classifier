@@ -10,6 +10,10 @@ command that proves each one are given. Four reviewers filed 20 findings; the se
 
 ## VERDICT: GO-WITH-CHECKLIST
 
+> **Update, commit 8a40ac7:** all four MUST-FIX items below (M1–M4) are fixed and re-verified.
+> The verdict is now **GO** — run the checklist as written; the M-sections stay as the record
+> of what was found and why.
+
 **Nothing in the repo stops the demo from working, but three shipped defaults/docs let a
 correct-looking `.env` come up broken (403 on every message, or a chat box that silently
 removes itself), and one real code defect makes every abandoned turn run to completion on
