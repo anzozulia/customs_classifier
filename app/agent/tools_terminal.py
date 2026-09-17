@@ -40,7 +40,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from agents import function_tool
 from chatkit.actions import ActionConfig
@@ -265,6 +265,63 @@ def _tail(full_path: str, steps: int = 2) -> str:
     return PATH_SEPARATOR.join(full_path.split(PATH_SEPARATOR)[-steps:])
 
 
+# Residual leaves. 2,473 of 10,490 leaf descriptions are literally "інші", so the deepest
+# segment of a full_path is very often the least informative thing in it.
+_RESIDUAL: Final[frozenset[str]] = frozenset({"інші", "інша", "інше", "інший", "решта"})
+_HEADLINE_CHARS: Final[int] = 80
+
+
+def _goods_description(full_path: str) -> str:
+    """The legal description of the code — which starts at the 4-digit HEADING.
+
+    A stored full_path is `section > chapter > heading > … > leaf`. The first two are filing
+    structure, not a description of the goods: section 16 alone is 200 characters of
+    «Машини, обладнання та механізми; …» that says nothing about a camera. Customs reads the
+    heading and the subdivisions under it, so that is what the answer shows.
+    """
+    segments = [seg.strip() for seg in full_path.split(PATH_SEPARATOR) if seg.strip()]
+    return " → ".join(segments[2:] if len(segments) > 2 else segments)
+
+
+def _headline(full_path: str) -> str:
+    """A short label for the code: the deepest meaningful segment, TRUNCATED.
+
+    Truncated, never re-selected. An earlier version took the last semicolon clause on the
+    theory that a heading's final clause is its most specific one. It is — for heading 8525,
+    whose last clause really is «телевізійні камери, цифрові камери…». But heading 9006 reads
+    «Фотокамери (крім кінокамер); фотоспалахи та лампи-спалахи…», and a camera got labelled
+    FLASHBULBS. A heading enumerates several distinct goods and nothing in the text says which
+    one a given subdivision belongs to, so picking a clause is guessing. A prefix cannot
+    misattribute: it is the real text, just less of it.
+    """
+    segments = [seg.strip() for seg in full_path.split(PATH_SEPARATOR) if seg.strip()]
+    meaningful = [seg for seg in segments if seg.casefold() not in _RESIDUAL]
+    label = meaningful[-1] if meaningful else (segments[-1] if segments else "")
+    if not label:
+        return ""
+    if len(label) > _HEADLINE_CHARS:
+        cut = label[:_HEADLINE_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:—-")
+        label = f"{cut}…"
+    return label[:1].upper() + label[1:]
+
+
+def _breadcrumb(code: str) -> str:
+    """Chapter > heading > code, DERIVED FROM THE CODE — not from the model's path.
+
+    A 10-digit code carries its own ancestry: the first two digits are the chapter and the
+    first four are the heading, by construction. Deriving the trail instead of reading the
+    model's `path` means no label can be wrong and the section — which is not part of a code,
+    and is not addressable by the tools — cannot leak in.
+
+    Numbers only; the descriptions are already above, and repeating them was the redundancy
+    that made the old answer unreadable.
+    """
+    digits = normalize_code(code)
+    if len(digits) != 10:
+        return f"**{format_code(code)}**"
+    return " \u203a ".join([digits[:2], digits[:4], f"**{format_code(digits)}**"])
+
+
 def _answer_markdown(
     checked: list[_Checked],
     confidence: str,
@@ -279,25 +336,43 @@ def _answer_markdown(
     that renders nothing at all is strictly worse than one that renders plainly.
     """
     lines: list[str] = []
-    for item in checked:
-        lines += [f"**{format_code(item.code)}**", "", item.detail.full_path, ""]
+    for index, item in enumerate(checked):
+        if index:
+            lines.append("---")
+            lines.append("")
+        # Number first and alone, because it is the thing being copied into a declaration.
+        lines += [f"### {format_code(item.code)}", ""]
+        headline = _headline(item.detail.full_path)
+        if headline:
+            lines += [f"**{headline}**", ""]
         if item.status is CodeStatus.AMBIGUOUS:
             lines += [f"_{message_for(CodeStatus.AMBIGUOUS, item.code, item.detail)}_", ""]
+
     if product_summary.strip():
-        lines += [f"_Класифіковано як:_ {product_summary.strip()}", ""]
+        lines += [product_summary.strip(), ""]
     if rationale.strip():
         lines += [rationale.strip(), ""]
-    if path:
-        trail = " → ".join(f"{s.code} {s.description}".strip() for s in path)
-        lines += [f"_Шлях:_ {trail}", ""]
+
     if alternatives:
-        lines.append("_Розглянуті альтернативи:_")
+        lines += ["**Також розглянуто**", ""]
         lines += [
-            f"- {format_code(a.code)} — {_tail(a.description)}: {a.reason}"
+            f"- `{format_code(a.code)}` {_tail(a.description, 1)} — {a.reason}"
             for a in alternatives
         ]
         lines.append("")
-    lines.append(f"_Впевненість: {confidence}._")
+
+    # The legal text ONCE, at the end, where it is reference rather than an obstacle — and
+    # from the heading down, not from the section.
+    for item in checked:
+        goods = _goods_description(item.detail.full_path)
+        if goods:
+            lines += ["**Повний опис позиції**", "", goods, ""]
+
+    trail = _breadcrumb(checked[0].code) if checked else ""
+    footer = trail or ""
+    if footer:
+        footer += " · "
+    lines.append(f"{footer}впевненість: {confidence}")
     return "\n".join(lines).strip()
 
 
@@ -349,15 +424,19 @@ async def emit_classification(
         confidence: "висока" — усі ознаки товару однозначно вкладаються в цей код;
             "середня" — код найкращий з розглянутих, але одна ознака лишилась неявною;
             "низька" — вибір неоднозначний, і ти зобов'язаний заповнити alternatives.
-        rationale: 2–4 речення українською: чому саме цей код і яка ознака відрізняє його
-            від найближчого сусіда. Це підстава, яку користувач покаже митниці.
+        rationale: 1–2 речення: ЧОМУ саме цей код і яка ознака відрізняє його від
+            найближчого сусіда. НЕ переказуй тут товар — він уже надрукований рядком вище
+            з product_summary, і повторення робить відповідь удвічі довшою без нової
+            інформації. Починай одразу з ознаки: «Ширина 15 см не перевищує 20 см, тому…».
+            Не цитуй назву позиції і не повторюй повний опис — його видно нижче.
         path: Пройдений шлях від розділу до коду, по одному кроку на рівень. Саме те, що
             ти відкривав інструментами, без домислів.
         alternatives: Коди, які ти серйозно розглядав і відхилив, з причиною відхилення.
             Порожній список, якщо альтернатив не було. Максимум 4. Обов'язковий, коли
             confidence не "висока".
-        product_summary: Одне-два речення: що саме за товар ти класифікував — так, як ти
-            його зрозумів. Користувач за цим перевірить, чи правильно ти його зрозумів.
+        product_summary: ОДНЕ коротке речення: що саме за товар ти класифікував, як ти його
+            зрозумів. Користувач за цим перевірить, чи правильно ти його зрозумів. Без
+            маркетингових деталей і без переліку характеристик, які не вплинули на вибір.
         evidence: Звідки взято характеристики товару.
     """
     ledger = ctx.context.ledger
