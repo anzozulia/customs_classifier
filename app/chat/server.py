@@ -36,6 +36,7 @@ failures, so nothing about the audit trail can break the user's stream.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator
@@ -241,6 +242,38 @@ class ClassifierServer(ChatKitServer[RequestContext]):
                 "Не вдалося завершити класифікацію. Спробуйте уточнити опис товару.",
                 allow_retry=True,
             ) from exc
+        except asyncio.CancelledError:
+            # M1 from the deploy audit. The visitor closed the tab or pressed stop. Starlette
+            # cancels THIS task, but the Agents SDK run loop is a separate background task that
+            # stream_agent_response merely reads from — cancelling the reader never cancelled
+            # the writer. CancelledError is a BaseException, so the `except Exception` below
+            # never saw it, and result.cancel() was never reached: the model kept calling
+            # tools and generating tokens to completion, every one billed, for a reply nobody
+            # would see, and the row stayed `pending` with no usage recorded.
+            error_class = "cancelled"
+            with suppress(Exception):
+                result.cancel()  # synchronous; safe inside a task that is being torn down
+            # Every await in a cancelled task re-raises before it completes, so the record
+            # write is handed to a task that outlives this one. The `finally` sees
+            # error_class == "cancelled" and does not attempt the write a second time.
+            usage = result.context_wrapper.usage
+            asyncio.get_running_loop().create_task(
+                fail_turn(
+                    classification_id,
+                    error_class="cancelled",
+                    tool_calls=list(ledger.calls),
+                    turns=result.current_turn,
+                    repairs=agent_ctx.repairs,
+                    tokens_in=usage.input_tokens,
+                    tokens_cached=usage.input_tokens_details.cached_tokens,
+                    tokens_out=usage.output_tokens,
+                    ttfb_ms=_ms_between(started, first_event_at),
+                    duration_ms=_ms_since(started),
+                ),
+                name=f"fail_turn:{classification_id}",
+            )
+            logger.info("turn cancelled by client: thread=%s", thread.id)
+            raise
         except Exception as exc:
             # Without this the SDK emits a bare, message-less stream.error and logs the
             # traceback to a logger that has no handler unless LOG_LEVEL is set.
@@ -293,10 +326,12 @@ class ClassifierServer(ChatKitServer[RequestContext]):
             # maps onto the stored one. Neither call can raise: both swallow and log.
             #
             # A turn cancelled at the `yield` (the client closed the tab) reaches here with
-            # the task already cancelled, so these awaits raise `CancelledError` straight
-            # back out and the row is deliberately left `pending` — the state the schema has
-            # for exactly this, and the one v1 could not distinguish from "never happened".
-            if error_class is None:
+            # the task already cancelled: any await would raise `CancelledError` straight
+            # back out. The `except asyncio.CancelledError` above has already cancelled the
+            # run and handed the record write to a detached task, so nothing is awaited here.
+            if error_class == "cancelled":
+                pass
+            elif error_class is None:
                 await finish_turn(
                     classification_id,
                     outcome=agent_ctx.outcome,

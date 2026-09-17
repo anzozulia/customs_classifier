@@ -94,6 +94,18 @@ def _session_secret(settings: Settings) -> str:
         return settings.session_secret
     if settings.is_production:
         raise RuntimeError("SESSION_SECRET is empty; refusing to sign cookies with nothing")
+    # M3 from the deploy audit. In production ChatKit verifies CHATKIT_DOMAIN_KEY against the
+    # OpenAI org allowlist and, on failure, UNMOUNTS the chat — the server sees nothing, both
+    # health checks stay green, and every visitor gets an empty card. The placeholder must
+    # therefore be a boot failure, not a runtime mystery.
+    if _settings.is_production and _settings.chatkit_domain_key in ("", "domain_pk_localhost_dev"):
+        raise RuntimeError(
+            "CHATKIT_DOMAIN_KEY is unset or still the localhost placeholder while "
+            "PUBLIC_BASE_URL is https://; register the domain at platform.openai.com "
+            "(org settings -> security -> domain allowlist) and set the real domain_pk_ key"
+        )
+    # M2: the one line that lets a deployer see the 403 trap before a visitor hits it.
+    logger.info("same-origin check accepts Origin in %s", sorted(allowed_origins()))
     logger.warning("SESSION_SECRET is empty: using an ephemeral key, every restart logs out")
     return secrets.token_urlsafe(32)
 

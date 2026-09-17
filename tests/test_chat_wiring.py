@@ -25,6 +25,7 @@ stream, and everything between them — `build_agent`, `render_system_prompt`, t
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -711,3 +712,46 @@ def test_history_is_not_swallowed_by_the_spa_mount() -> None:
         response = client.get(path)
         assert response.status_code == 401, path
         assert response.headers["content-type"].startswith("application/json"), path
+
+
+async def test_a_client_that_leaves_cancels_the_model_run_and_closes_the_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """M1 from the deploy audit — the one runtime defect that costs money.
+
+    Closing the tab cancels the REQUEST task. The Agents SDK run is a separate background
+    task that `stream_agent_response` only reads from, so before this fix the model kept
+    calling tools and generating tokens to completion — every one billed — for a reply
+    nobody would see, and the row stayed `pending` with nothing recorded. `CancelledError`
+    is a BaseException, which is exactly why the `except Exception` path never caught it.
+    """
+    recorder = _Recorder()
+    recorder.install(monkeypatch)
+    usage = _Usage(input_tokens=500, output_tokens=7, input_tokens_details=_TokenDetails(40))
+    run = _FakeRun(usage=usage, turns=2)
+
+    async def _hanging_stream(*_args: Any, **_kwargs: Any) -> Any:
+        # The model is "still thinking" when the visitor leaves: never yields, never ends.
+        await asyncio.Event().wait()
+        yield None  # pragma: no cover - makes this an async generator
+
+    server = _server(
+        monkeypatch, items=[_user_message("плівка")], stream=_hanging_stream, run=run
+    )
+
+    task = asyncio.create_task(_drain(server, _user_message("плівка")))
+    await asyncio.sleep(0.01)  # past begin_turn and into the hanging stream
+    assert recorder.trace == ["begin_turn"], "cancelled before the run started — test is wrong"
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await asyncio.sleep(0.01)  # let the detached fail_turn task run
+
+    assert run.cancelled is True, "the model run must be cancelled, not just the HTTP request"
+    assert recorder.trace == ["begin_turn", "fail_turn"]
+    fail = recorder.fail
+    assert fail["classification_id"] == recorder.classification_id
+    assert fail["error_class"] == "cancelled"
+    assert fail["turns"] == 2
+    assert (fail["tokens_in"], fail["tokens_cached"], fail["tokens_out"]) == (500, 40, 7)
