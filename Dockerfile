@@ -8,7 +8,7 @@
 # =============================================================================
 # stage 1 — frontend (React + Vite + Tailwind, D4)
 # =============================================================================
-FROM node:22-alpine AS frontend
+FROM node:26-alpine AS frontend
 
 WORKDIR /fe
 
