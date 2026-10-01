@@ -29,7 +29,7 @@ RUN npm run build
 # =============================================================================
 # stage 2 — python dependencies, built into a relocatable venv
 # =============================================================================
-FROM python:3.13-slim AS pybuild
+FROM python:3.14-slim AS pybuild
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -71,7 +71,7 @@ RUN pip install "psycopg[binary]>=3.2,<4"
 # =============================================================================
 # stage 3 — runtime
 # =============================================================================
-FROM python:3.13-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 # TZ=UTC        the ChatKit SDK uses naive datetime.now() everywhere and our
 #               pagination compares created_at — mixing naive and aware raises
