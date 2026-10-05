@@ -8,13 +8,13 @@ dependencies = [
   # ChatKit backend SDK. NOT on PyPI — the `chatkit` name there is a reserved 0.0.1 stub.
   # Pinned to a tag; it declares openai-agents>=0.3.2 itself.
   "openai-chatkit @ git+https://github.com/openai/chatkit-python.git@v1.6.5",
-  "openai-agents==0.22.2",
-  "fastapi==0.141.1",
-  "uvicorn[standard]==0.53.0",
+  "openai-agents==0.22.3",
+  "fastapi==0.142.2",
+  "uvicorn[standard]==0.54.0",
   "asyncpg==0.31.0",
   "alembic==1.20.0",
-  "psycopg[binary]==3.3.5",              # SYNC driver for alembic only; runtime is asyncpg
-  "sqlalchemy==2.0.54",            # alembic's migration DDL only; runtime queries are asyncpg
+  "psycopg[binary]==3.3.6",              # SYNC driver for alembic only; runtime is asyncpg
+  "sqlalchemy==2.1.2",            # alembic's migration DDL only; runtime queries are asyncpg
   "pydantic==2.13.5",
   "pydantic-settings==2.15.0",
   "itsdangerous==2.2.0",           # SessionMiddleware cookie signing
