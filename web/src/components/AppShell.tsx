@@ -39,6 +39,7 @@ import { ADMIN_PATH } from "../lib/admin";
 import { LOGIN_PATH, apiFetch } from "../lib/api";
 import type { AppConfig } from "../lib/config";
 import type { ColorScheme } from "../lib/theme";
+import WelcomeDialog, { welcomeAlreadySeen } from "./WelcomeDialog";
 
 type Props = {
   config: AppConfig;
@@ -52,7 +53,7 @@ const NAV = [
 ];
 
 /** Tailwind's `md`, NOT `sm`. The inline cluster needs ~700px — wordmark, nav, display
- *  name, ✦, theme and «Вийти» — so switching to it at `sm` (640px) overflowed the page
+ *  name, ✦, ⓘ, theme and «Вийти» — so switching to it at `sm` (640px) overflowed the page
  *  sideways by 56px in the 640..696 band. Named because the menu's open/closed state
  *  keys off the same breakpoint. */
 const MENU_BREAKPOINT = "(min-width: 768px)";
@@ -61,6 +62,11 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const burgerRef = useRef<HTMLButtonElement>(null);
+  // Opens by itself exactly once per browser — the first time a visitor reaches the app —
+  // and on demand from the ⓘ button / the menu row after that. Read in the initialiser so the
+  // first paint already has it, with no frame where the page shows without it.
+  const [aboutOpen, setAboutOpen] = useState(() => !welcomeAlreadySeen());
 
   // Every hook runs before the guard below returns: the redirect is conditional, the hooks
   // must not be.
@@ -143,6 +149,7 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
   const endSessionLabel = isGuest ? "Почати заново" : "Вийти";
   const EndSessionIcon = isGuest ? RefreshIcon : SignOutIcon;
   const endSession = () => void (isGuest ? startOver() : signOut());
+  const aboutLabel = "Про проєкт";
 
   return (
     <div className="flex h-full flex-col">
@@ -226,6 +233,16 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
 
             <button
               type="button"
+              onClick={() => setAboutOpen(true)}
+              className="btn-icon"
+              aria-label={aboutLabel}
+              title={aboutLabel}
+            >
+              <InfoIcon />
+            </button>
+
+            <button
+              type="button"
               onClick={onToggleTheme}
               className="btn-icon"
               aria-label={themeLabel}
@@ -248,6 +265,7 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
           {/* ── below sm: one button for all of the above ──────────────────────────────── */}
           <div className="relative ml-auto flex-none md:hidden" ref={menuRef}>
             <button
+              ref={burgerRef}
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
               className="btn-icon"
@@ -285,6 +303,23 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
                 )}
 
                 <div className="my-1 h-px bg-slate-200 dark:bg-slate-800" />
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    // This row unmounts in the same commit that mounts the dialog, so focus
+                    // would fall to <body> and showModal() would return it there on close.
+                    // Park it on the burger, which survives, so closing lands back on it.
+                    burgerRef.current?.focus();
+                    setMenuOpen(false);
+                    setAboutOpen(true);
+                  }}
+                  className="menu-row"
+                >
+                  <InfoIcon />
+                  {aboutLabel}
+                </button>
 
                 {user.isSuperuser && (
                   <NavLink to={ADMIN_PATH} role="menuitem" className="menu-row">
@@ -325,6 +360,8 @@ export default function AppShell({ config, scheme, onToggleTheme }: Props) {
       <main className="min-h-0 flex-1">
         <Outlet />
       </main>
+
+      {aboutOpen && <WelcomeDialog isGuest={isGuest} onClose={() => setAboutOpen(false)} />}
     </div>
   );
 }
@@ -342,6 +379,15 @@ function MoonIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4 flex-none" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 flex-none" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 7.5h.01" />
     </svg>
   );
 }
