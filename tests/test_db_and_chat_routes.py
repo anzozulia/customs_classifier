@@ -109,7 +109,7 @@ def test_normalise_dsn_strips_a_sqlalchemy_driver() -> None:
 def test_normalise_dsn_only_rewrites_the_scheme() -> None:
     """The pattern is anchored. A `+` anywhere else — a password, a query parameter — is part
     of the DSN and rewriting it would produce credentials that silently do not work."""
-    dsn = "postgresql://user:pa+ss@host/db?application_name=uktzed+v2"
+    dsn = "postgresql://user:pa+ss@host/db?application_name=uktzed+classifier"
 
     assert db.normalise_dsn(dsn) == dsn
 
@@ -118,7 +118,7 @@ async def test_init_pool_normalises_the_dsn_and_returns_the_same_pool_twice(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Idempotent by contract: a second `init_pool` must not open a second pool. The bound
-    that matters is `command_timeout` — v1 had none anywhere, so a wedged query held a
+    that matters is `command_timeout` — without one, a wedged query holds a
     connection until the driver's 600 s default."""
     created: list[tuple[str, dict[str, Any]]] = []
     pool = _RecordingPool()
@@ -170,8 +170,7 @@ async def test_acquire_hands_out_a_pooled_connection_and_gives_it_back(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """`acquire()` exists for multi-statement work that must share a transaction. The release
-    is the half that matters: v1 opened a connection at 15 call sites and pooled nothing, and
-    a leak was one `except:` away."""
+    is the half that matters: without it, a leak is one `except:` away."""
     released: list[bool] = []
     connection = object()
 
@@ -368,7 +367,7 @@ def test_a_streaming_turn_is_a_200_event_stream(client: TestClient, server: _Stu
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert _events(response.text) == [{"type": "thread.created"}]
-    # A proxy that buffers the stream turns a live drill-down back into v1's static string.
+    # A proxy that buffers the stream turns a live drill-down back into a static string.
     assert response.headers["cache-control"] == "no-cache, no-transform"
     assert response.headers["x-accel-buffering"] == "no"
 
@@ -497,7 +496,7 @@ def test_a_request_without_the_chatkit_headers_still_has_an_id_and_a_locale(
     client: TestClient, server: _StubServer
 ) -> None:
     """Neither header is guaranteed. A missing frame id must still produce a correlatable
-    request id — v1's 17 opaque 500s could not be correlated with anything at all."""
+    request id, or a 500 cannot be correlated with anything at all."""
     _sign_in(client)
     server.outcome = lambda: _stream()
 

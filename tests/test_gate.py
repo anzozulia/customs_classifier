@@ -2,10 +2,9 @@
 # defaults (no allowed-confusables), so the exemption is declared per file.
 """The provenance gate.
 
-v1's measured failure mode was NOT cold hallucination (~1.3% of fresh answers) but STALE
-CARRY-OVER: 36% of continued turns answered from tool output replayed in context from an
-earlier turn, potentially about a different product. Nothing in v1 could tell the two apart and
-nothing forbade the second.
+The failure mode that matters is NOT cold hallucination but STALE CARRY-OVER: a continued
+turn answering from tool output replayed in context from an earlier turn, potentially about a
+different product. Without a gate nothing can tell the two apart and nothing forbids the second.
 
 These tests pin the structural fix: a code is emittable only if THIS turn's tool results
 contained it, the repair loop that rejection opens actually runs, and it is bounded.
@@ -187,7 +186,7 @@ async def test_accepts_a_code_the_ledger_did_see() -> None:
 
 
 async def test_answer_text_comes_from_the_database_not_the_model() -> None:
-    """D25/E7: `full_path` and `description` are ALWAYS overwritten from the DB."""
+    """E7: `full_path` and `description` are ALWAYS overwritten from the DB."""
     agent_ctx = _context(repo=_Repo({"8517130000": _row("8517130000")}))
     _walk_to(agent_ctx, "8517130000")
 
@@ -380,7 +379,7 @@ async def test_malformed_codes_are_all_rejected(code: str) -> None:
 
 async def test_separators_are_normalised_rather_than_rejected() -> None:
     """`XXXX XX XX XX` is how the tariff is printed, so a code that arrives formatted is a
-    formatting question, not a wrong answer. v1 made this the model's job, in prose, twice."""
+    formatting question, not a wrong answer."""
     agent_ctx = _context()
     _walk_to(agent_ctx, "8517130000")
 

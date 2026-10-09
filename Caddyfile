@@ -1,4 +1,4 @@
-# UKTZED v2 reverse proxy.
+# UKTZED reverse proxy.
 #
 # The one hard requirement this file exists for: POST /chatkit answers with a
 # `text/event-stream` that stays open for 30-60 seconds and is SILENT between
@@ -108,8 +108,8 @@
 		# connect-src https://api.openai.com
 		#     The loader calls POST https://api.openai.com/v1/chatkit/domain_keys/verify
 		#     and UNMOUNTS the chat if it does not get an answer: it fails closed on
-		#     network errors too, after a 10s abort and one retry. The research argues
-		#     that fetch is issued by the iframe and therefore governed by the iframe's
+		#     network errors too, after a 10s abort and one retry. That fetch is
+		#     most likely issued by the iframe and therefore governed by the iframe's
 		#     own CSP, not ours — but this has never been loaded in a real browser, the
 		#     failure mode is "the chat box is silently gone", and allowlisting one
 		#     origin we already trust costs nothing. Keep it.

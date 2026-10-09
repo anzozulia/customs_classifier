@@ -2,8 +2,8 @@
 # defaults (no allowed-confusables), so the exemption is declared per file.
 """The single classifier agent.
 
-ONE agent. No sub-agents, no handoffs. v1's cold cost was 4.72 model turns against ~2 warm,
-and every handoff is a turn — an invisible one, because `stream_agent_response` drops
+ONE agent. No sub-agents, no handoffs. Model turns are what a cold answer costs, and every
+handoff is a turn — an invisible one, because `stream_agent_response` drops
 `AgentUpdatedStreamEvent` entirely. Web research is the hosted `WebSearchTool`, which resolves
 inside the same Responses call instead of costing a call, a nested run and a consume turn.
 
@@ -68,7 +68,6 @@ def _configure_openai() -> None:
     PROCESS ENVIRONMENT and constructs its client lazily on the first turn. Without this
     bridge the whole app imports, boots and passes /readyz, then dies on the first real
     request with "Missing credentials" — the failure is invisible until a user hits it.
-    (v1 did the equivalent with an explicit os.environ assignment.)
     """
     settings = get_settings()
     if settings.openai_api_key:
@@ -101,8 +100,9 @@ def model_settings(reasoning_effort: str | None = None) -> ModelSettings:
         # summary="auto" is what makes ChatKit render the Thinking panel at all.
         reasoning=Reasoning(effort=effort, summary="auto"),  # type: ignore[arg-type]
         verbosity="low",
-        timeout=90.0,  # per model-call attempt. v1 had none and ate 600s read timeouts twice.
-        include_usage=True,  # v1 never recorded a single token count.
+        # Per model-call attempt; without one a stalled read hangs for the client's 600s default.
+        timeout=90.0,
+        include_usage=True,  # every call records its token counts.
         store=get_settings().openai_telemetry,  # the Logs page half of openai_telemetry
         parallel_tool_calls=True,
     )
@@ -152,9 +152,10 @@ def build_agent(
     turn is pure waste. Keyed on all three arguments so that a prompt change, a model change or
     an effort change is picked up for free — and so that switching the model in the admin panel
     cannot be answered from the previous model's cached agent. Both overrides default to the
-    environment, which keeps every caller that only has a prompt (the eval harness, the M0
-    spike, the wiring tests) working unchanged. `maxsize` covers two locales x the priced
-    models x the three efforts with room to spare; an Agent is cheap and this is not a leak.
+    environment, which keeps every caller that only has a prompt (the eval harness,
+    `scripts/spike_m0.py`, the wiring tests) working unchanged. `maxsize` covers two locales
+    x the priced models x the three efforts with room to spare; an Agent is cheap and this is
+    not a leak.
     """
     settings = get_settings()
     return Agent[UktzedContext](

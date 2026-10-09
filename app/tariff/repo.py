@@ -1,13 +1,13 @@
 """All tariff navigation SQL, in one class.
 
 The rule this file exists to enforce: **sections are not addressable**. All 21 section codes
-are also group codes, and v1 accepted both as bare 2-digit strings and silently returned the
-wrong subtree. Here a 2-digit code always means a group, the only entry point that accepts a
+are also group codes, so accepting both as bare 2-digit strings silently returns the wrong
+subtree. Here a 2-digit code always means a group, the only entry point that accepts a
 section code is `list_groups_in_section`, and the natural key `(dataset_id, level, code)`
 makes the two rows structurally different objects.
 
-Retrieval is the tree walk (D23). `search_candidates` is a hypothesis generator over
-`full_path` trigrams, not an answer path — embeddings are milestone M4, and Postgres ships no
+Retrieval is the tree walk. `search_candidates` is a hypothesis generator over
+`full_path` trigrams, not an answer path — embeddings are future work, and Postgres ships no
 Ukrainian text-search configuration, so FTS is not the fallback.
 """
 
@@ -164,8 +164,8 @@ LIMIT $4
 def normalize_code(code: str) -> str:
     """Strip everything a human or a model might add: spaces, dots, dashes, NBSPs.
 
-    v1 delegated the `XXXX XX XX XX` format rule to model obedience in three places. It is
-    one function, applied at the boundary, once.
+    The `XXXX XX XX XX` format rule is not left to model obedience. It is one function,
+    applied at the boundary, once.
     """
     return "".join(ch for ch in code.strip() if ch.isdigit())
 
@@ -285,8 +285,8 @@ class TariffRepo:
     async def expand(self, prefix: str) -> CategoryTree:
         """The same tree, rooted at any intermediate code. The escape hatch from `truncated`.
 
-        Not in the milestone's method list, but `open_category`'s truncated branch tells the
-        model to call `expand`, so the data layer has to be able to answer it.
+        `open_category`'s truncated branch tells the model to call `expand`, so the data
+        layer has to be able to answer it.
         """
         code = normalize_code(prefix)
         return await self._tree(code, level_for_code(code))
@@ -322,7 +322,7 @@ class TariffRepo:
         Consumer vocabulary is largely absent from the tariff (`ILIKE '%ноутбук%'` matches
         zero rows; it writes «машини обчислювальні портативні»), so this helps when the user
         pastes tariff-shaped language and is honestly weak otherwise. That gap is a synonymy
-        problem and it closes with embeddings in M4, not with more lexical tuning.
+        problem and it closes with embeddings, not with more lexical tuning.
         """
         text = " ".join(query.split())
         if not text:

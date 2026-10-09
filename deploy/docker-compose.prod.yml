@@ -1,4 +1,4 @@
-# UKTZED v2 — the PRODUCTION stack. This is the file that runs on the VPS, at
+# UKTZED — the PRODUCTION stack. This is the file that runs on the VPS, at
 # /root/uktzed-v2/docker-compose.prod.yml, and it is copied there by every deploy.
 #
 # It is docker-compose.yml with exactly one thing changed: `build:` is gone and `image:`
@@ -42,7 +42,7 @@ services:
   # NOTE: there is no reverse proxy in this file. This app is deployed onto a HOST THAT
   # ALREADY RUNS NGINX for several other sites, so TLS, HTTP->HTTPS and the public port
   # belong to that nginx, not to this stack. The vhost lives in deploy/nginx/ and is
-  # installed once by hand; see CICD.md step E. A Caddy container here would try to bind
+  # installed once by hand. A Caddy container here would try to bind
   # :80 and :443 and take every other site on the box down with it.
 
   migrate:
@@ -132,8 +132,8 @@ services:
       # Deterministic initdb; avoids surprises in text ordering for Ukrainian data.
       # Read ONCE, at first boot. Changing it later does nothing to an existing pg_data.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
-    # NO `ports:`. v1 published 5432 to 0.0.0.0 with the default password; that is the
-    # single worst thing in its deployment and it is not repeated here.
+    # NO `ports:`. Publishing 5432 to 0.0.0.0 with the default password would be the
+    # single worst thing this deployment could do.
     # To poke at the database:   ./deploy.sh compose exec db psql -U postgres uktzed
     volumes:
       - pg_data:/var/lib/postgresql/data

@@ -5,7 +5,7 @@ TypeScript contract, and each is tested in isolation — `tests/test_records_wri
 `begin_turn`/`finish_turn` against a SQLite mirror of migration 0004, and
 `tests/test_history_api.py` assembles its own FastAPI app around the router. Neither of them
 can see the two things this file exists to pin, and both of them are exactly where a
-milestone like this breaks:
+change like this breaks:
 
 * **`app/chat/server.py` actually calls the writer, in the right order.** The row is opened
   BEFORE `Runner.run_streamed` — that ordering is the whole design, not an implementation
@@ -580,12 +580,12 @@ async def test_input_text_falls_back_to_the_converted_input(
 async def test_a_persistence_failure_does_not_break_the_stream_and_is_not_silent(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The REAL writer, with no pool behind it — the M0 spike's exact situation.
+    """The REAL writer, with no pool behind it.
 
     Nothing is recorded here, and that is the test: `get_pool()` raises
     `PoolNotInitialisedError` inside both halves of the lifecycle, the turn streams to the end
     anyway, and both failures reach the log at ERROR carrying the classification id that ties
-    them together. v1's fifteen bare `except:` blocks are what this is the opposite of.
+    them together.
     """
     import app.db as db
 
@@ -717,7 +717,7 @@ def test_history_is_not_swallowed_by_the_spa_mount() -> None:
 async def test_a_client_that_leaves_cancels_the_model_run_and_closes_the_record(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """M1 from the deploy audit — the one runtime defect that costs money.
+    """The one runtime defect that costs money.
 
     Closing the tab cancels the REQUEST task. The Agents SDK run is a separate background
     task that `stream_agent_response` only reads from, so before this fix the model kept

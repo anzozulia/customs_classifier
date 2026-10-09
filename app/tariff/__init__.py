@@ -21,8 +21,8 @@ TariffLevel = Literal["section", "group", "category", "code"]
 ``category`` is the 4-digit heading; ``code`` is the flat 6/8/10-digit prefix tree below it.
 
 Sections are **not addressable**: a bare 2-digit code always means a group. All 21 section
-codes are also group codes, and v1 passed both as bare 2-digit strings and silently returned
-the wrong subtree. Section is derived from ``ancestor_codes[0]``, never taken as an argument.
+codes are also group codes, so passing both as bare 2-digit strings silently returns the
+wrong subtree. Section is derived from ``ancestor_codes[0]``, never taken as an argument.
 """
 
 LEVELS: tuple[str, ...] = ("section", "group", "category", "code")

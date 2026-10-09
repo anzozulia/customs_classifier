@@ -32,8 +32,9 @@ the token count. It does not need to: the turn's own instrumentation already pub
 * The **turn summary** — `uktzed.chat`'s single `turn done …` INFO line, emitted in
   `respond()`'s `finally` once usage has settled — carries outcome, turns, repairs, tokens and
   latency. It is keyed by `thread=`, which is unique per case, so a capture handler can match
-  it under concurrency. The M0 spike parses the same line for the same reason: usage is stale
-  until the stream drains, so this is the only place those numbers exist at the right time.
+  it under concurrency. `scripts/spike_m0.py` parses the same line for the same reason: usage
+  is stale until the stream drains, so this is the only place those numbers exist at the right
+  time.
 
 Concurrency is a bounded semaphore (default 4) so a 50-case run is minutes, not an hour. The
 bound matters: each case is one streaming turn holding a model connection and a pool
@@ -282,7 +283,7 @@ class Harness:
         """Model, prompt and dataset identity — read off the live objects.
 
         Not parsed out of a log line: this is what a baseline is compared against, and a
-        baseline whose provenance is a substring of a print statement is v1's problem again.
+        baseline whose provenance is a substring of a print statement cannot be trusted.
         """
         settings = get_settings()
         catalogue = await self._server.section_catalogue()

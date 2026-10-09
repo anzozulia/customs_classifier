@@ -32,7 +32,7 @@ _INVALID = "Невірне ім'я користувача чи пароль."
 class LoginRequest(BaseModel):
     """The login body. Consumed as `application/x-www-form-urlencoded`, not as JSON.
 
-    Form encoding is what the architecture's handler (§8, `username: str = Form(...)`) and the
+    Form encoding is what the login handler (`username: str = Form(...)`) and the
     shipped SPA (`web/src/pages/LoginPage.tsx` posts a `URLSearchParams`) both use, and it is
     why `python-multipart` is pinned. FastAPI's pydantic-model-as-form support (>=0.113) keeps
     the validation constraints below in one declared place instead of two `Form(...)` defaults,

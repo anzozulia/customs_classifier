@@ -11,7 +11,7 @@ else in the suite touches. Three of them were actually broken when the chunks we
 * `app.main` mounted no static files at all, so `web/dist` was never served and a reload on
   `/history/<id>` had nothing to fall back to.
 
-The wiring pass for the admin milestone added three more, all of them seams between chunks
+The wiring pass for the admin panel added three more, all of them seams between chunks
 that were written in parallel and none of them visible to the tests those chunks shipped:
 
 * `GET /api/config` now carries `access_mode` and, on `user`, `kind` and `is_superuser` —
@@ -364,7 +364,7 @@ def test_a_human_session_outlives_the_switch_to_private(
 
 
 # ---------------------------------------------------------------------------
-# POST /api/login — form-encoded, per the architecture's Form(...) handler
+# POST /api/login — form-encoded, per the Form(...) handler
 # ---------------------------------------------------------------------------
 
 
@@ -494,7 +494,8 @@ def test_readyz_reports_db_dataset_and_model(client: TestClient) -> None:
     assert body["status"] == "ok"
     assert body["checks"]["db"] is True
     assert body["checks"]["tariff_nodes"] == 14_187
-    # v1 shipped a banner naming a model it did not run. This is read from the config object.
+    # Read from the config object, never a literal: a banner must not name a model the
+    # process does not run.
     assert body["checks"]["model"] == get_settings().model
 
 
@@ -503,8 +504,8 @@ def test_readyz_reports_the_model_the_admin_panel_selected(
 ) -> None:
     """…and when a superuser overrides it at runtime, the probe follows.
 
-    `/readyz` reporting the .env value while the process runs something else is the exact
-    shape of v1's two-month lie, and since 0005 the model is changeable without a redeploy.
+    `/readyz` reporting the .env value while the process runs something else would be a
+    probe that lies, and since 0005 the model is changeable without a redeploy.
     """
     pool.set_runtime("model", "gpt-5.6-luna")
     assert client.get("/readyz").json()["checks"]["model"] == "gpt-5.6-luna"

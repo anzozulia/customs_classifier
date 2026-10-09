@@ -1,4 +1,4 @@
-# UKTZED v2 — the whole deployment: caddy, app, db, and a one-shot migrate.
+# UKTZED — the whole deployment: caddy, app, db, and a one-shot migrate.
 #
 #   docker compose up -d --build
 #
@@ -131,7 +131,7 @@ services:
   # ---------------------------------------------------------------------------
   # db — Postgres 17. pg_trgm ships in the official image's contrib set, so the
   # migrations can `CREATE EXTENSION IF NOT EXISTS pg_trgm` with no custom image.
-  # (When embeddings land in M4, swap this for pgvector/pgvector:pg17 — same data
+  # (When embeddings land, swap this for pgvector/pgvector:pg17 — same data
   # directory layout, same major version.)
   # ---------------------------------------------------------------------------
   db:
@@ -143,8 +143,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       # Deterministic initdb; avoids surprises in text ordering for Ukrainian data.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
-    # NO `ports:`. v1 published 5432 to 0.0.0.0 with the default password; that is the
-    # single worst thing in its deployment and it is not repeated here. The .env.example
+    # NO `ports:`. Publishing 5432 to 0.0.0.0 with the default password would be the
+    # single worst thing this deployment could do. The .env.example
     # password is only acceptable BECAUSE this port is unreachable from outside.
     # To poke at the database:            docker compose exec db psql -U postgres uktzed
     # If you truly need a local GUI client, bind to loopback only and remove it after:

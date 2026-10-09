@@ -50,7 +50,7 @@ export type AppConfig = {
 };
 
 /**
- * The contract with `app/` (documented in web/README.md):
+ * The contract with `app/`:
  *
  *   GET /api/config -> 200, always
  *   { "domain_key": "...", "locale": "uk-UA", "chatkit_url": "/chatkit",

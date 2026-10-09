@@ -1,10 +1,10 @@
 """One function, one closed vocabulary.
 
-`error_class` is a CLOSED set so that `GROUP BY error_class` means something. v1 had no error
-taxonomy and no logs at all: seven requests ate the SDK's 600s read timeout twice, silently,
-with nothing at ERROR level; 17 opaque HTTP 500s could not be correlated with anything.
+`error_class` is a CLOSED set so that `GROUP BY error_class` means something. Without a
+taxonomy, a stalled 600s read timeout passes silently with nothing at ERROR level, and an
+opaque HTTP 500 cannot be correlated with anything.
 
-Every value below is derived from v1's measured failure set, so the table is a list of things
+Every value below is derived from a measured failure set, so the table is a list of things
 that actually happened, not a list of things that could.
 """
 
@@ -24,8 +24,8 @@ from chatkit.store import NotFoundError
 __all__ = ["ERROR_CLASSES", "ErrorClass", "classify_error", "is_retryable", "user_message"]
 
 ErrorClass = Literal[
-    "provenance_violation",  # E4 rejected an emitted code — v1's measured 36%, never detected
-    "code_not_in_dataset",  # E2 — ranked finding #1 in the v1 research, never checked
+    "provenance_violation",  # E4 rejected an emitted code
+    "code_not_in_dataset",  # E2
     "code_not_leaf",  # E3 — `is_final` was a prompt promise
     "schema_violation",  # structured output failed validation — 0 in 4,343, record anyway
     "max_turns_exceeded",  # MaxTurnsExceeded
@@ -34,17 +34,17 @@ ErrorClass = Literal[
     "rate_limited",  # 429
     "upstream_billing",  # the account is out of credits / over quota. NOT "internal": the
     # operator must see a billing problem as a billing problem, and a retry cannot fix it.
-    "timeout",  # our own wall-clock budget; v1 had none and its p99 was 141s
+    "timeout",  # our own wall-clock budget
     "guardrail_tripwire",
     "cancelled",  # client disconnected mid-stream
     "not_found",  # thread/item is gone, or was never the caller's
-    "internal",  # everything else. v1's catch-all, 5 user-visible
+    "internal",  # everything else
 ]
 
 ERROR_CLASSES: Final[tuple[str, ...]] = get_args(ErrorClass)
 
 # Retry advice for the user-facing error event. "Not retryable" means a retry would fail the
-# same way; getting this wrong costs ~5 silent client re-runs (§10.5).
+# same way; getting this wrong costs ~5 silent client re-runs.
 _NON_RETRYABLE: Final[frozenset[str]] = frozenset(
     {
         "provenance_violation",
@@ -141,8 +141,8 @@ def is_retryable(error_class: ErrorClass) -> bool:
     return error_class not in _NON_RETRYABLE
 
 
-# What the user actually reads. v1 shipped one generic string for everything, so "the service
-# has no credits" and "your description broke the parser" were indistinguishable — to the user
+# What the user actually reads. One generic string for everything would make "the service
+# has no credits" and "your description broke the parser" indistinguishable — to the user
 # AND to the operator reading over their shoulder. Each message says what the user can do; none
 # of them says "internal error" when we know better.
 _USER_MESSAGES: Final[dict[str, str]] = {

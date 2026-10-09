@@ -7,7 +7,7 @@ Create Date: 2026-09-16
 Shape, and why:
 
 * **Surrogate PK + `UNIQUE (dataset_id, level, code)`.** All 21 section codes ("01".."21") are
-  also valid group codes. v1 addressed both as bare 2-digit strings and silently returned the
+  also valid group codes. Addressing both as bare 2-digit strings silently returns the
   wrong subtree. Here `('section','01')` and `('group','01')` are different rows that cannot
   be confused, and the collision becomes structurally unrepresentable rather than documented.
 
@@ -15,7 +15,7 @@ Shape, and why:
 
 * **`full_path` is materialised and NOT NULL.** 2,473 of the 10,490 leaf descriptions are
   literally "інші" and 46% are 15 characters or shorter, so nothing anywhere may read a bare
-  `description`. Materialising it at ingest also means the M4 embedding backfill needs no
+  `description`. Materialising it at ingest also means a future embedding backfill needs no
   re-ingest: the text it will embed already exists.
 
 * **`is_terminal` is an authored column.** On this snapshot it agrees with `len(code) = 10` on
@@ -25,8 +25,8 @@ Shape, and why:
   codes have no 6-digit parent in the source; ingest points them at the longest EXISTING
   prefix instead of synthesising rows whose text is not in the tariff.
 
-* **No `embedding` column and no `tsvector`.** Retrieval ships as the tree walk (D23);
-  pgvector arrives in M4 with the eval set that can prove it helps. An unused `vector(1536)`
+* **No `embedding` column and no `tsvector`.** Retrieval ships as the tree walk;
+  pgvector arrives later, with the eval set that can prove it helps. An unused `vector(1536)`
   column plus an HNSW index today would be a second system maintained for nobody.
 
 `pg_trgm` is created here because `search_candidates` scores `word_similarity()` over
@@ -53,8 +53,8 @@ def upgrade() -> None:
         sa.Column("id", sa.BigInteger(), sa.Identity(always=False), primary_key=True),
         sa.Column("source_filename", sa.Text(), nullable=False),
         # sha256 of the raw source bytes. The ingest is idempotent on this value and
-        # /readyz compares it against the file on disk — v1 failed silently when the
-        # tariff file was missing.
+        # /readyz compares it against the file on disk, so a missing tariff file is not a
+        # silent failure.
         sa.Column("sha256", sa.CHAR(64), nullable=False, unique=True),
         sa.Column("node_count", sa.Integer(), nullable=False),
         sa.Column("terminal_count", sa.Integer(), nullable=False),
@@ -140,7 +140,7 @@ def upgrade() -> None:
     op.create_index("tariff_node_code_idx", "tariff_node", ["dataset_id", "code"])
     # For lookups against full_path. `search_candidates` today orders by an explicit
     # word_similarity() floor, which is a 14k-row scan and does not touch this index; the
-    # index is what makes the `%` / `%>` operators usable (admin lookups now, the M4
+    # index is what makes the `%` / `%>` operators usable (admin lookups now, an
     # exact-term path later) without a sequential scan per query.
     op.create_index(
         "tariff_node_full_path_trgm_idx",

@@ -112,7 +112,7 @@ def upgrade() -> None:
             "created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now()
         ),
     )
-    # v2 ships with attachment_store=None, so this table stays empty. It exists because the
+    # The app ships with attachment_store=None, so this table stays empty. It exists because the
     # three attachment methods are @abstractmethod on chatkit.store.Store: the class will not
     # instantiate without them, and a `pass` stub is a latent cross-user read the day anyone
     # switches uploads on.

@@ -1,5 +1,5 @@
 [project]
-name = "uktzed-v2"
+name = "uktzed-classifier"
 version = "0.1.0"
 description = "UKTZED product classifier — web chat, OpenAI Agents SDK + ChatKit"
 requires-python = ">=3.13"

@@ -1,9 +1,4 @@
-"""The evaluation harness — the deepest flaw inherited from v1, fixed.
-
-v1 had no evaluation at all. `test_agents.py` called eight test functions that were never
-defined, so it crashed on import in every single commit; 1,403 production classifications
-produced zero measured accuracy, and that is exactly why one prompt line changed in ten
-commits. Nobody could tell whether a change helped.
+"""The evaluation harness — without it, nobody can tell whether a change helped.
 
 Four modules, one job each:
 

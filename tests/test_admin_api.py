@@ -577,8 +577,8 @@ def test_the_overview_reports_the_live_prompt_and_a_closed_default_mode(
     assert body["access_mode"] == "private"
     assert body["model"] == get_settings().model
     assert body["reasoning_effort"] == get_settings().reasoning_effort
-    # Read from app/agent/prompts, never a literal: v1 shipped a banner naming a model and a
-    # prompt it did not run, and its logs lied for two months.
+    # Read from app/agent/prompts, never a literal: a hard-coded banner can name a model and a
+    # prompt the process does not run.
     assert body["prompt_version"] == PROMPT_VERSION
     assert re.fullmatch(r"[0-9a-f]{64}", body["prompt_sha256"])
     assert body["dataset_sha256"] == DATASET_SHA

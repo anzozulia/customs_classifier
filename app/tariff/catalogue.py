@@ -3,13 +3,13 @@
 """P2 — the `{sections_catalogue}` block injected into the system prompt.
 
 Generated from the database, frozen with the dataset, hashed into every classification row.
-Five rules, each one deleting prompt text that v1 needed because its catalogue was ambiguous:
+Five rules, each one deleting prompt text an ambiguous catalogue would need:
 
 1. Sort by code. Section 06's groups are stored `30…38,28,29`; a naive builder emits
    "(групи 30–29)".
 2. Label both numbering systems — `Розділ NN (групи A–B):` — instead of leaving the model to
-   infer which 2-digit namespace a number belongs to. v1 needed 622 characters of prose for
-   exactly this.
+   infer which 2-digit namespace a number belongs to, which would otherwise take a paragraph
+   of prose.
 3. Expand the group titles under any section whose description is not unique or that owns at
    most three groups. That is what gives sections 19 and 20 any signal: both are literally
    "Різні промислові товари".

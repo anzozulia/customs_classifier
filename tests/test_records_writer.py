@@ -1,8 +1,8 @@
 """THE test for the record: a turn that crashes must still be a row.
 
-v1 wrote a classification only when the turn succeeded. 1,403 classifications later it had
-ZERO input/output pairs, no token counts, no latency, and no trace at all of the 29 turns
-that failed — the failure this milestone exists to make impossible. So the assertions below
+A classification written only when the turn succeeds leaves no trace at all of the turns
+that failed — no input/output pair, no token counts, no latency. That is the failure this
+writer exists to make impossible. So the assertions below
 are about *when* rows exist as much as what is in them: pending before the model runs,
 closed after, and still there when the turn dies.
 
@@ -329,7 +329,7 @@ async def _tool_calls(pool: FakePool, classification_id: str) -> list[sqlite3.Ro
 async def test_begin_turn_writes_a_pending_row_before_the_model_runs(
     pool: FakePool, alice: RequestContext
 ) -> None:
-    """The whole milestone in one assertion: the record is INSERTed first, not last."""
+    """The whole design in one assertion: the record is INSERTed first, not last."""
     classification_id = await _begin(alice)
 
     assert classification_id.startswith("cls_")
@@ -418,7 +418,7 @@ async def test_finish_turn_writes_codes_and_tool_calls(
 async def test_codes_are_resolved_from_the_ledger_never_from_the_model(
     pool: FakePool, alice: RequestContext, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """D25: the description and full_path stored are the database's, and a code this turn
+    """The description and full_path stored are the database's, and a code this turn
     never surfaced is dropped rather than stored with invented text."""
     ledger = _ledger()
     with caplog.at_level(logging.ERROR, logger="uktzed.records"):
@@ -483,7 +483,7 @@ async def test_clarification_is_its_own_outcome(pool: FakePool, alice: RequestCo
 async def test_conversation_is_stored_losslessly(pool: FakePool, alice: RequestContext) -> None:
     """The agent's third branch survives the write. The four-value API vocabulary has no
     `conversation`, but collapsing it HERE would delete the only evidence of how often the
-    agent chats instead of classifying (29 of v1's 1,403 turns)."""
+    agent chats instead of classifying."""
     classification_id = await _begin(alice)
     await _finish(classification_id, _ledger(), outcome="conversation", codes=[])
 
@@ -508,7 +508,7 @@ async def test_an_outcome_outside_the_vocabulary_does_not_lose_the_row(
 
 
 async def test_a_failed_turn_is_still_a_row(pool: FakePool, alice: RequestContext) -> None:
-    """v1's defining hole: 29 failed turns, zero records. A failure still burned tokens and
+    """A failed turn with no record is the defining hole. A failure still burned tokens and
     still walked the tariff, and all of it is kept."""
     ledger = _ledger()
     classification_id = await _begin(alice)
@@ -559,8 +559,8 @@ async def test_an_abandoned_turn_stays_pending(pool: FakePool, alice: RequestCon
 async def test_a_dead_pool_never_breaks_the_turn(
     dead_pool: None, alice: RequestContext, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The user's answer must not depend on the audit trail. But v1 had 15 fail-open blocks
-    that impersonated empty state, so every one of these has to leave an ERROR behind that
+    """The user's answer must not depend on the audit trail. But a fail-open block
+    must not impersonate empty state, so every one of these has to leave an ERROR behind that
     names the classification."""
     with caplog.at_level(logging.ERROR, logger="uktzed.records"):
         classification_id = await _begin(alice)

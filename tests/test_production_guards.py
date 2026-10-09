@@ -1,8 +1,8 @@
 """The boot guards for settings that fail silently in production.
 
-An earlier revision of the M3 guard sat inside the empty-SESSION_SECRET fallback, after a
-`raise`, and could never run; a smoke test with the placeholder key booted green. These tests
-exist so a guard that cannot fire is a red test, not a red demo.
+An earlier revision of the CHATKIT_DOMAIN_KEY guard sat inside the empty-SESSION_SECRET
+fallback, after a `raise`, and could never run; a smoke test with the placeholder key booted
+green. These tests exist so a guard that cannot fire is a red test, not a red demo.
 """
 
 from __future__ import annotations

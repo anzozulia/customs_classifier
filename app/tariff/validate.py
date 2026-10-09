@@ -1,10 +1,10 @@
 # the en dash are correct typography here, not Latin look-alikes; pyproject pins ruff's
 # defaults (no allowed-confusables), so the exemption is declared per file.
-"""The check v1 never had.
+"""The check between the model's code and the user.
 
-v1 took whatever code the model produced and rendered it. Nothing asked the database whether
-that code existed, and nothing asked whether it was a code you may actually declare. This is
-the gate, and it is two lines of SQL behind one function.
+Rendering whatever code the model produces means nothing asks the database whether that code
+exists, or whether it is a code you may actually declare. This is the gate, and it is two
+lines of SQL behind one function.
 
 It is not the provenance gate — `TurnLedger` answers "did *this turn* show the model this
 code?", this answers "is this code real and final?". Both have to pass.
@@ -86,6 +86,6 @@ def message_for(status: CodeStatus, code: str, detail: NodeDetail | None = None)
     """The Ukrainian correction line for a failed or qualified check.
 
     Lives here rather than in the tool so that the wording and the condition cannot drift
-    apart — v1's rules and its checks were in different files and disagreed.
+    apart — rules and checks kept in different files end up disagreeing.
     """
     return _MESSAGES[status].format(code=code, child_count=detail.child_count if detail else 0)

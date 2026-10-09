@@ -43,7 +43,7 @@ SSE_HEADERS = {
     "Cache-Control": "no-cache, no-transform",
     "Connection": "keep-alive",
     # Honoured by nginx, a harmless no-op under Caddy. Kept because a proxy in front of this
-    # app that buffers the stream turns a live drill-down back into v1's static string.
+    # app that buffers the stream turns a live drill-down into one static reply at the end.
     "X-Accel-Buffering": "no",
 }
 

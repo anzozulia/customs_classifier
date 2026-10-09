@@ -1,15 +1,14 @@
 """Thread items -> model input.
 
-One override, for one measured reason. The default `widget_to_input` dumps the ENTIRE widget
+One override, for one reason. The default `widget_to_input` dumps the ENTIRE widget
 JSON into the next turn's input as a user message. A result card carries the full code path
 and the full description, so leaving the default on means re-sending the whole answer on every
-subsequent turn of the conversation — exactly the silent growth v1 had no instrumentation to
-notice. Measured on v1: history replay was 68% of the input token bill, and one model call
-cost 2.6x more wall clock at 750 stored items than at 50 (10.1s -> 26.2s median).
+subsequent turn of the conversation — silent growth that inflates the input token bill and the
+wall clock of every model call as the thread gets longer.
 
 Everything else is inherited on purpose. `structured_input_to_input` already renders a
 clarification answer as the `<StructuredInput>` block the prompt expects, and
-`hidden_context_to_input` is unreachable because v2 never persists a `HiddenContextItem`:
+`hidden_context_to_input` is unreachable because this app never persists a `HiddenContextItem`:
 turn 1's candidates for product A must not be replayed on turn 5 about product B.
 """
 

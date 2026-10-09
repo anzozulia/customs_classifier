@@ -1,4 +1,4 @@
-# UKTZED v2 image: one image runs the API, the one-shot migrator and the CLI.
+# UKTZED image: one image runs the API, the one-shot migrator and the CLI.
 #
 # Three stages:
 #   frontend  node:22-alpine   -> the Vite bundle
@@ -6,7 +6,7 @@
 #   runtime   python:3.13-slim -> venv + source + data + bundle, non-root, no toolchain
 
 # =============================================================================
-# stage 1 — frontend (React + Vite + Tailwind, D4)
+# stage 1 — frontend (React + Vite + Tailwind)
 # =============================================================================
 FROM node:22-alpine AS frontend
 
@@ -21,7 +21,7 @@ COPY web/ ./
 
 # No VITE_* build args, deliberately. The ChatKit domain key is a PUBLIC value, but
 # inlining it at build time is what forces a frontend rebuild every time the domain
-# changes. v2 serves it at runtime from GET /api/config instead (D4), so this stage
+# changes. It is served at runtime from GET /api/config instead, so this stage
 # takes no configuration at all and its cache never invalidates on an env change.
 RUN npm run build
 # -> /fe/dist
@@ -94,8 +94,8 @@ COPY --from=pybuild /opt/venv /opt/venv
 COPY alembic.ini ./
 COPY migrations/ ./migrations/
 COPY app/ ./app/
-# 2.4 MB of tariff JSON, committed on purpose: v1 .gitignore'd it and became a
-# wrapper around a file nobody could version.
+# 2.4 MB of tariff JSON, committed on purpose: a .gitignore'd tariff turns the app into a
+# wrapper around a file nobody can version.
 COPY data/ ./data/
 # Same path a local `npm run build` writes to, so the app can mount web/dist in
 # development and in the image with one line and no branch.

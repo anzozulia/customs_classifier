@@ -1,9 +1,9 @@
 """Turn-scoped provenance.
 
-v1's measured failure mode was NOT cold hallucination (~1.3% of fresh answers) but
+The measured failure mode is NOT cold hallucination (~1.3% of fresh answers) but
 STALE CARRY-OVER: 36% of continued turns answered from tool output replayed in context
-from an earlier turn, potentially about a different product. Nothing in v1 could tell
-the two apart, and nothing forbade the second.
+from an earlier turn, potentially about a different product. Without provenance nothing
+can tell the two apart, and nothing forbids the second.
 
 The fix is structural, not a prompt rule: every code the model sees is recorded here
 against the tool call that produced it IN THIS TURN, and the terminal tool refuses any

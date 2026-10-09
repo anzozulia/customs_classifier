@@ -9,7 +9,7 @@ that line.
 * ``UAModel`` — the base every model-facing payload derives from.
 * ``PathStep`` — a breadcrumb step, which is both a piece of every tool result and an argument
   type of ``emit_classification``. There must be exactly one of it.
-* ``Outcome`` — v1's three-way outcome taxonomy plus the failure branch it never recorded.
+* ``Outcome`` — the three-way outcome taxonomy plus a failure branch.
 
 ``UktzedContext`` and ``Ctx`` deliberately do NOT live here; they are in
 ``app.agent.context``, and that module's docstring explains the cycle that put them there.
@@ -38,8 +38,8 @@ __all__ = [
 ]
 
 Outcome = Literal["result", "clarification", "conversation", "error"]
-"""v1's three-way outcome taxonomy — 1,130 / 244 / 29 of 1,403 — plus the failure it never
-recorded, because v1 wrote a row only on success and every crashed turn was invisible."""
+"""The three-way outcome taxonomy plus the failure branch, so that a crashed turn is recorded as
+a row instead of being invisible."""
 
 
 class UAModel(BaseModel):

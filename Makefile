@@ -1,4 +1,4 @@
-# UKTZED v2 — the commands you run more than once. Nothing here hides anything:
+# UKTZED — the commands you run more than once. Nothing here hides anything:
 # every target is the command you would have typed.
 #
 # Container targets need .env (copy .env.example). Host targets (dev, test, lint,
@@ -57,7 +57,7 @@ lint: ## ruff check + format check, exactly as CI runs it
 fmt: ## autoformat and apply the safe lint fixes
 	ruff format . && ruff check --fix .
 
-spike: ## M0 smoke run — drives ClassifierServer.respond() against the real API, prints PASS/FAIL
+spike: ## Smoke run — drives ClassifierServer.respond() against the real API, prints PASS/FAIL
 	OPENAI_TELEMETRY=false python scripts/spike_m0.py
 
 eval-verify: ## check every golden case against the tariff — offline, no API key, no database

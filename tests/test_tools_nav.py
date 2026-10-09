@@ -134,8 +134,8 @@ GROUPS_BY_SECTION: dict[str, list[NodeSummary]] = {
 }
 
 CATEGORIES_BY_GROUP: dict[str, list[NodeSummary]] = {
-    # Group 16 lives in section 04 and has nothing to do with section 16. This is the D19
-    # collision, and it is why every collision test below uses these two.
+    # Group 16 lives in section 04 and has nothing to do with section 16. This is the
+    # section/group collision, and it is why every collision test below uses these two.
     "16": [
         _summary("1602", "category", CAT_1602, _path(SECTION_04, GROUP_16, CAT_1602)),
         _summary("1604", "category", CAT_1604, _path(SECTION_04, GROUP_16, CAT_1604)),
@@ -739,7 +739,7 @@ async def test_a_malformed_argument_is_an_answer_the_model_can_act_on(
 
 async def test_an_unknown_code_keeps_the_breadcrumb_it_was_lost_in() -> None:
     """P5: the one result where the model is already off-track is the one that must say where
-    it is. v1 dropped the breadcrumb from exactly this result."""
+    it is."""
     agent_ctx = _context()
 
     result = await open_category.__wrapped__(_wrap(agent_ctx), category_code="8599")
@@ -779,13 +779,13 @@ async def test_a_broken_breadcrumb_does_not_lose_the_result_it_decorates() -> No
 
 
 # --------------------------------------------------------------------------------------
-# D19 — sections are not addressable. All 21 section codes are also group codes.
+# Sections are not addressable. All 21 section codes are also group codes.
 # --------------------------------------------------------------------------------------
 
 
 async def test_a_bare_two_digit_code_is_a_group_in_every_tool_that_takes_a_code() -> None:
     """The code 16 is section «Машини, обладнання та механізми» AND group «Готові харчові
-    продукти з м'яса». v1 pushed both through one `section=` argument and silently returned
+    продукти з м'яса». Pushing both through one `section=` argument silently returns
     the wrong subtree; here only the parameter literally named `section_code` is a section."""
     repo = _Repo()
     agent_ctx = _context(repo)
@@ -869,7 +869,7 @@ async def test_the_drill_down_tools_refuse_a_two_digit_code_outright(
 
 
 async def test_the_section_listing_does_not_borrow_the_groups_breadcrumb() -> None:
-    """D19 surviving in a decoration, found by this test and fixed.
+    """The section/group collision surviving in a decoration, found by this test and fixed.
 
     `repo.ancestry` derives the level from the code's LENGTH, and two digits is always a
     GROUP — so a SECTION code was looked up as a group and section 16's listing came back

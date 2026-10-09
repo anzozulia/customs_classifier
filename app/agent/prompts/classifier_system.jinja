@@ -3,42 +3,33 @@
   Holes: {{ sections_catalogue }} (P2, frozen with the dataset), {{ locale }}.
 
   Static means cacheable: it goes first, it is never reordered, and prefix caching turns
-  ~4,300 tokens of list price into roughly a tenth of it. v1 got a 37% cache discount by
-  accident; here it is a design property.
+  ~4,300 tokens of list price into roughly a tenth of it. That is a design property, not
+  an accident.
 
-  ── DELETED FROM v1, BECAUSE CODE NOW ENFORCES IT ──────────────────────────────────────
-  D1  "Не плутай секцію та группу … не починай пошук одразу з групи" (622 chars, v1's
-      longest bullet) — deleted ENTIRELY. Disjoint tool names carry the level, and
-      `list_groups_in_section` is the only tool that takes a section code. One clause about
-      the section not being part of the code survives in СТРУКТУРА: that is taxonomy
-      teaching, not a guardrail.
+  ── LEFT OUT OF THE PROMPT, BECAUSE CODE ENFORCES IT ──────────────────────────────────
+  D1  "Не плутай секцію та группу … не починай пошук одразу з групи" (622 chars) — left
+      out ENTIRELY. Disjoint tool names carry the level, and `list_groups_in_section` is
+      the only tool that takes a section code. One clause about the section not being part
+      of the code stays in СТРУКТУРА: that is taxonomy teaching, not a guardrail.
   D2  "Проміжні коди (6-8 цифр) без is_final — це НЕ кінцеві коди!" — check E3 plus
       "термінальний": false on every node of every tool result.
-  D3  "Використовуй ТІЛЬКИ коди з is_final: true" (stated twice, two lines apart) — E3.
+  D3  "Використовуй ТІЛЬКИ коди з is_final: true" — E3.
   D4  "Завжди досліджуй повну структуру до знаходження кінцевих кодів" — E3 + E4.
-  D5  "Не вигадуй і не галюцинуй коди" — E2 + E4. E4 is strictly stronger than the sentence
-      ever was: it also catches stale carry-over, which the sentence never addressed.
+  D5  "Не вигадуй і не галюцинуй коди" — E2 + E4. E4 is strictly stronger than the sentence:
+      it also catches stale carry-over, which the sentence does not address.
   D6  "Використовуй веб-пошук завжди коли користувач надає посилання — навіть якщо таке
       саме вже було" — a cache-buster for a decision code makes.
-  D7  "ФОРМАТ ВІДПОВІДІ:" as a numbered list with one item — the item survives as
+  D7  "ФОРМАТ ВІДПОВІДІ:" as a numbered list with one item — the item stays as
       ПОВНИЙ ОПИС; the heading and the numbering go.
-  D8  models.py:9's "XXXX XX XX XX" format rule and the 00-padding rule — E1 accepts raw
+  D8  The "XXXX XX XX XX" format rule and the 00-padding rule — E1 accepts raw
       digits, `format_code()` formats once at the render boundary.
   D9  ПРАВИЛА УТОЧНЮЮЧИХ ПИТАНЬ items 1 and 2 — the same rule positively then negatively.
-  D10 "Однак не здійснюй пошук в декількох секціях" — never measured; shipped policy was
-      the permissive one (Gen B, 1,403 production classifications). The permissive wording
-      is what ships here; the prohibition does not.
-  D11 The 940511 worked example, duplicated verbatim in two files — one copy now, in the
-      tool result, where the model is reading data.
-  D12 "Відповідай українською", asserted seven times across the repo — once, last.
+  D10 "Однак не здійснюй пошук в декількох секціях" — never measured. The permissive
+      wording is what ships; the prohibition does not.
+  D11 The 940511 worked example — one copy, in the tool result, where the model is reading
+      data.
+  D12 "Відповідай українською" — once, last.
   D13 The РОЗУМІННЯ СТРУКТУРИ JSON block — the tool result format is self-describing.
-
-  Typos fixed while porting: "клссифікаця"/"чотири рівня"/"рівней" (models.py:9),
-  "товарівю" (:195), "Зазнач що" (:213), plus the unbalanced quote inside v1's is_final rule.
-
-  NEW, because v1 had none of them: the prompt-injection rule, the stale-carry-over rule,
-  the refusal/off-topic rule, the "I searched and found nothing" branch, and the
-  degenerate-tool-result rule.
 #}
 Ти — експерт-класифікатор товарів за кодами УКТЗЕД (Українська класифікація товарів
 зовнішньоекономічної діяльності).

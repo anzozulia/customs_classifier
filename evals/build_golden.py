@@ -49,15 +49,15 @@ DEFAULT_TARIFF = ROOT / "data" / "uktzed_hierarchical.json"
 OUTCOMES: tuple[str, ...] = ("result", "clarification", "conversation")
 """How a turn ends, decided by which terminal tool the agent called.
 
-`clarification` is NOT a failure — in v1 production 17.4% of turns ended this way and the
-loop is part of the product. A scorer that punishes it optimises toward confident wrong
-codes, which is the worst outcome a customs classifier can have.
+`clarification` is NOT a failure — the clarification loop is part of the product. A scorer
+that punishes it optimises toward confident wrong codes, which is the worst outcome a customs
+classifier can have.
 """
 
 SOURCES: tuple[str, ...] = (
     "verified-live",
     "tariff-derived",
-    "v1-prompt-example",
+    "prompt-example",
     "domain-reasoning",
 )
 """Where the CASE came from. Not where its code came from — every code is verified here."""
@@ -410,7 +410,7 @@ def _histogram(title: str, counts: Counter[str], order: list[str] | None = None)
 
 
 def format_report(report: Report, tariff_path: Path) -> str:
-    """The human-readable verification report. Paste it into evals/README.md."""
+    """The human-readable verification report."""
     index = report.index
     cases = report.cases
     total = len(cases)

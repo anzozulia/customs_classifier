@@ -2,16 +2,15 @@
 # defaults (no allowed-confusables), so the exemption is declared per file.
 """Terminal tools — the two ways a turn can end with an artefact.
 
-v1's three-way outcome contract survives in full (1,130 result / 244 clarification / 29
-conversation of 1,403); only its carrier changes. `emit_classification` is the *result* branch,
+The outcome contract is three-way. `emit_classification` is the *result* branch,
 `ask_clarification` is the *clarification* branch, and calling neither is the *conversation*
 branch, which streams as prose for free.
 
 Two rules govern everything here.
 
-**The gate is code, not prose.** v1 shouted "не вигадуй і не галюцинуй коди" and then printed
-whatever came back — no length check, no existence check, no description check, 100% prompt and
-0% code. Here the checks run inside the tool, before anything renders:
+**The gate is code, not prose.** A prompt line like "не вигадуй і не галюцинуй коди" checks
+nothing — no length check, no existence check, no description check. Here the checks run inside
+the tool, before anything renders:
 
 | # | Check | Owner |
 |---|---|---|
@@ -23,7 +22,7 @@ whatever came back — no length check, no existence check, no description check
 | E6 | at most four alternatives — truncate, do not reject | here |
 | E7 | the model's `full_description` against the stored `full_path` | metric, not an error |
 
-E4 is the one that matters. v1's measured failure was not cold hallucination (~1.3% of fresh
+E4 is the one that matters. The measured failure is not cold hallucination (~1.3% of fresh
 answers) but STALE CARRY-OVER: 36% of continued turns answered from tool output replayed in
 context from an earlier turn, potentially about a different product. Scoping provenance to the
 current turn kills both, and it is the reason a retrieval hit cannot become an answer by itself.
@@ -111,8 +110,7 @@ ERROR_EMPTY_QUESTION = "empty_question"
 def format_code(code: str) -> str:
     """`8517130000` -> `8517 13 00 00`. The ONLY place a code is formatted.
 
-    v1 delegated this to model obedience, in prose, in two files, plus a `00`-padding rule that
-    was a band-aid over a data bug.
+    Formatting is code, not a prose instruction the model may or may not obey.
     """
     digits = normalize_code(code)
     if len(digits) != 10:
@@ -200,10 +198,10 @@ async def _check_code(ctx: Ctx, raw: str, *, navigated: set[str]) -> _Checked | 
         )
 
     # E2 + E3 — against the database, through the same function the offline validator uses, so
-    # the wording and the condition cannot drift apart the way v1's did.
+    # the wording and the condition cannot drift apart.
     repo = ctx.context.tariff
     if repo is None:
-        # No repo wired (unit tests, the M0 spike): the ledger's evidence came from the
+        # No repo wired (unit tests, `scripts/spike_m0.py`): the ledger's evidence came from the
         # database this turn, so it is the same row, read once instead of twice.
         detail = NodeDetail(
             code=code,
@@ -510,7 +508,7 @@ async def emit_classification(
         if isinstance(outcome, Ack):
             ledger.end_call(rec, error=outcome.error_code)
             return outcome
-        # D25: description from the database, never from the model.
+        # Description from the database, never from the model.
         clean_alternatives.append(
             Alternative(code=outcome.code, description=outcome.detail.full_path, reason=alt.reason)
         )
@@ -596,7 +594,7 @@ async def ask_clarification(ctx: Ctx, question: str, options: list[str], why: st
 
     # The first-class primitive, not free text the user has to read and retype: ChatKit takes
     # over the composer, records the answer on the item, and feeds it back as a
-    # <StructuredInput> block. One model turn instead of two, on 17.4% of v1's traffic.
+    # <StructuredInput> block. One model turn instead of two on every clarification.
     structured = (
         StructuredInputMultipleChoice(
             id=ctx.context.generate_id("message"),
@@ -641,8 +639,8 @@ def summarise_rejection(ack: Any) -> str:
 
 
 # The "one more product" affordance. A classification is a finished unit of work, and the
-# next product is a NEW conversation, not a follow-up turn — v1's users pressed /clear 449
-# times asking for exactly this boundary, 87% of them right after a delivered result.
+# next product is a NEW conversation, not a follow-up turn — and users reach for exactly this
+# boundary right after a delivered result.
 #
 # handler="client" means the action never reaches the server: the browser calls
 # control.setThreadId(null) and a fresh thread starts. Nothing to persist, nothing to route.

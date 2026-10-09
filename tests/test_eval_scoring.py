@@ -1,14 +1,12 @@
-"""The scorer, pinned. This is the test v1 never had, about the thing v1 never measured.
+"""The scorer, pinned.
 
-v1's `test_agents.py` called eight test functions that were never defined, so the suite crashed
-on import in every commit and 1,403 classifications produced zero measured accuracy. The
-counter-move is not "more tests" in general: it is that the file which decides what "better"
-means is itself checked, offline, against fixtures — no API key, no database, no model.
+Not "more tests" in general: the file which decides what "better" means is itself checked,
+offline, against fixtures — no API key, no database, no model.
 
 Three properties matter more than the arithmetic and each has its own test below:
 
-* **A clarification is never scored as a wrong answer.** 17.4% of v1's production turns were
-  clarifications and the loop is part of the product. An eval that punishes them optimises the
+* **A clarification is never scored as a wrong answer.** Clarifications are a routine part of
+  production traffic and the loop is part of the product. An eval that punishes them optimises the
   system into confident guessing, which in customs classification is the worst outcome there
   is. So accuracy is conditional on having answered, and `answer_rate` is what stops the
   degenerate "clarify on everything" strategy from scoring 100%.
@@ -982,7 +980,7 @@ def test_the_shipped_golden_set_parses() -> None:
 
 
 def test_a_yaml_directory_is_loaded_through_the_golden_set_builder(tmp_path) -> None:
-    """`evals/README.md` makes `build_golden.py` the single implementation of the schema, so
+    """`build_golden.py` is the single implementation of the schema, so
     the loader here defers to it for YAML and converts, rather than re-parsing the files."""
     pytest.importorskip("yaml")
     (tmp_path / "cases.yaml").write_text(

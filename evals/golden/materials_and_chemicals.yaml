@@ -4,7 +4,7 @@
 # was chosen first and the description written from its full_path, which makes the
 # vocabulary friendlier than a real user's would be.
 #
-# Schema: see evals/README.md. Verified by evals/build_golden.py.
+# Schema and verification: evals/build_golden.py.
 
 - id: mat-white-cement
   input: "Цемент білий портландцемент, незабарвлений, у мішках по 25 кг"

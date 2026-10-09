@@ -8,15 +8,15 @@ request == one assistant turn == one ledger.
 
 Three decisions in here are load-bearing and easy to get wrong.
 
-**First paint before anything else.** v1's median cold latency was 48.2s and only 7.5% of its
-turns finished under 10 seconds, all of it behind one static string. The `ProgressUpdateEvent`
-below is on the wire in tens of milliseconds, and from then on the navigation tools push a
-`CustomTask` per step into a `Workflow` the user watches fill in. Reasoning summaries become
-`ThoughtTask`s for free, but only because `summary="auto"` is set in `model_settings()`.
+**First paint before anything else.** A classification turn is slow, and nothing should sit
+behind one static string while it runs. The `ProgressUpdateEvent` below is on the wire in tens
+of milliseconds, and from then on the navigation tools push a `CustomTask` per step into a
+`Workflow` the user watches fill in. Reasoning summaries become `ThoughtTask`s
+for free, but only because `summary="auto"` is set in `model_settings()`.
 
-**A bounded window, rebuilt from the Store, and no `previous_response_id`.** v1 replayed the
-whole transcript: max 796 items, 68% of its input token bill, and a 2.6x wall-clock tax at 750
-items against 50. Chaining on `previous_response_id` would need `store=True` retention at
+**A bounded window, rebuilt from the Store, and no `previous_response_id`.** Replaying the
+whole transcript makes history the bulk of the input token bill and slows every model call as
+the thread grows. Chaining on `previous_response_id` would need `store=True` retention at
 OpenAI and silently desyncs from ChatKit-only items, and our payloads are small enough that
 the saving would be marginal anyway.
 
@@ -29,7 +29,7 @@ double write and a primary-key violation.
 `finally` that logs the turn summary calls `finish_turn()`/`fail_turn()` with the very
 numbers it just logged — one set of values, two sinks, no second computation to drift. A turn
 that dies in between stays `pending` with a NULL `finished_at`, which is a row you can query
-rather than the absence v1 left behind. `app/records/writer.py` swallows and logs its own
+rather than an absence. `app/records/writer.py` swallows and logs its own
 failures, so nothing about the audit trail can break the user's stream.
 """
 
@@ -79,7 +79,7 @@ __all__ = ["ClassifierServer"]
 
 
 class ClassifierServer(ChatKitServer[RequestContext]):
-    """`ChatKitServer` performs ZERO authorization — the `Store` is the boundary (§5.3)."""
+    """`ChatKitServer` performs ZERO authorization — the `Store` is the boundary."""
 
     def __init__(self, store: Store[RequestContext], tariff: TariffRepo) -> None:
         # attachment_store is omitted deliberately: uploads are off, and an AttachmentStore we
@@ -109,8 +109,8 @@ class ClassifierServer(ChatKitServer[RequestContext]):
         dataset anyway, and a re-ingest means a restart in this deployment. Failure is not
         fatal — `dataset_sha256` is NULLable precisely because a turn can lose the repo — but
         it is loud, and it is caught here rather than inside the record writer so that a
-        `TariffRepo` stand-in without this method (the M0 spike ships one) cannot take the
-        stream down with an AttributeError.
+        `TariffRepo` stand-in without this method cannot take the stream down with an
+        AttributeError.
         """
         if self._dataset_sha is None:
             try:
@@ -132,7 +132,7 @@ class ClassifierServer(ChatKitServer[RequestContext]):
 
         # THE turn boundary. Everything the model is allowed to emit this turn gets recorded
         # into this ledger by the tools, and nothing survives from the previous turn — which
-        # is the structural fix for v1's measured 36% stale-carry-over rate.
+        # is the structural fix for codes carried over stale from an earlier turn.
         ledger = context.ledger
         ledger.reset()
 
@@ -173,9 +173,9 @@ class ClassifierServer(ChatKitServer[RequestContext]):
         # environment — when `app_setting` has no row or the database will not answer.
         #
         # Both are read ONCE, here, and then used everywhere: the agent that runs, the
-        # `classification` row that is opened below, and the turn-summary log line. v1's
-        # banner named one model while the code constructed another; the fix is not a
-        # comment, it is that there is a single value and all three sinks read it.
+        # `classification` row that is opened below, and the turn-summary log line. A
+        # banner that names one model while the code constructs another is not fixed by a
+        # comment; it is fixed by a single value that all three sinks read.
         model = await get_runtime("model")
         reasoning_effort = await get_runtime("reasoning_effort")
 
@@ -223,8 +223,8 @@ class ClassifierServer(ChatKitServer[RequestContext]):
                 # A per-event deadline rather than `asyncio.timeout` around the loop:
                 # cancelling a suspended async generator from the outside tears the stream
                 # down at an arbitrary point. This bounds the gaps; `ModelSettings.timeout`
-                # bounds a single stuck model call. Together that is the wall clock v1 never
-                # had — it ate the SDK's 600s default twice, silently.
+                # bounds a single stuck model call. Together that is the turn's wall clock;
+                # without it a stalled read hangs for the SDK's 600s default, silently.
                 if time.perf_counter() - started > settings.turn_wall_clock_s:
                     raise TimeoutError(
                         f"turn exceeded {settings.turn_wall_clock_s}s "
@@ -242,7 +242,7 @@ class ClassifierServer(ChatKitServer[RequestContext]):
                 allow_retry=True,
             ) from exc
         except asyncio.CancelledError:
-            # M1 from the deploy audit. The visitor closed the tab or pressed stop. Starlette
+            # The visitor closed the tab or pressed stop. Starlette
             # cancels THIS task, but the Agents SDK run loop is a separate background task that
             # stream_agent_response merely reads from — cancelling the reader never cancelled
             # the writer. CancelledError is a BaseException, so the `except Exception` below
@@ -291,8 +291,8 @@ class ClassifierServer(ChatKitServer[RequestContext]):
         finally:
             # Usage is STALE until the stream drains, so it is read here and never inside the
             # loop. This is the `finally` and not the success path on purpose: a cancelled or
-            # failed turn still produced usage for the calls that completed, and v1's
-            # equivalent ran only on success, which made every crashed turn invisible.
+            # failed turn still produced usage for the calls that completed, and reading
+            # it only on success would make every crashed turn invisible.
             usage = result.context_wrapper.usage
             ttfb_ms = _ms_between(started, first_event_at)
             duration_ms = _ms_since(started)
@@ -378,7 +378,7 @@ class ClassifierServer(ChatKitServer[RequestContext]):
     ) -> None:
         # DANGER: items.feedback does NOT go through the Store. ChatKitServer hands you a
         # client-supplied thread_id and item_ids with no ownership lookup at all, so the Store
-        # is not the isolation boundary here — this method is. v2 ships with
+        # is not the isolation boundary here — this method is. This app ships with
         # threadItemActions.feedback = false, which is what makes this unreachable today.
         raise NotImplementedError("Enable only together with an explicit ownership check")
 

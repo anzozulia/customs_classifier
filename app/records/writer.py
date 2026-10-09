@@ -1,9 +1,9 @@
 """The record writer — three calls, one row, and a turn that cannot disappear.
 
 THE WHOLE POINT, in one sentence: `begin_turn()` INSERTs the row with `outcome = 'pending'`
-BEFORE the model runs. v1 wrote a record only when a turn succeeded, so a turn that crashed,
-timed out or was cancelled left nothing at all behind, and its 1,403 classifications produced
-ZERO input/output pairs to learn from. Here the row exists first and is *closed* afterwards:
+BEFORE the model runs. Writing a record only when a turn succeeds means a turn that crashed,
+timed out or was cancelled leaves nothing at all behind, and no input/output pair to learn
+from. Here the row exists first and is *closed* afterwards:
 
     id = await begin_turn(ctx, input_text=…, thread_id=…, model=…, …)   # outcome='pending'
     …the model runs…
@@ -23,15 +23,15 @@ row you can find, not an absence you cannot.
 | `error`                     | `error`                           | `error`                        |
 | —                           | `pending` (set by `begin_turn`)   | `pending`                      |
 
-`conversation` — the agent answered in prose without reaching a terminal tool, 29 of v1's
-1,403 turns — is stored as itself and collapsed to the contract's four-value vocabulary at the
-API boundary (`app/records/routes.py` owns that collapse). Collapsing it here would delete the
+`conversation` — the agent answered in prose without reaching a terminal tool — is stored as
+itself and collapsed to the contract's four-value vocabulary at the API boundary
+(`app/records/routes.py` owns that collapse). Collapsing it here would delete the
 only evidence of how often the agent chats instead of classifying.
 
 **A write here must never break the user's stream.** Every public call is wrapped and returns
-normally on failure. That is emphatically NOT v1's fail-open, though: v1 had 15 bare
-`except:` blocks that returned empty state and left no trace, so an outage looked exactly like
-a user with no history. Each handler here logs at ERROR, with the classification id, through
+normally on failure. That is emphatically NOT a silent fail-open, though: a bare `except:`
+that returns empty state and leaves no trace makes an outage look exactly like a user with no
+history. Each handler here logs at ERROR, with the classification id, through
 `logger.exception` — the turn survives, and the failure is in the log with the id needed to
 find the half-written row. (`asyncio.CancelledError` is a `BaseException` in 3.13 and so is
 deliberately NOT caught: a cancelled task must stay cancelled.)
@@ -284,7 +284,7 @@ async def fail_turn(
 
     A failed turn still burned tokens and still walked the tariff, and `error_class` (the
     closed vocabulary from `app/chat/errors.py`) is what makes `GROUP BY error_class` over
-    this table the failure report v1 could not produce. No codes: whatever the model was about
+    this table a failure report. No codes: whatever the model was about
     to emit was never shown to anyone.
     """
     await _close_turn(

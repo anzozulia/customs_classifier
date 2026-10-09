@@ -1,4 +1,4 @@
-# Theme: cases built from the failure modes v1 actually had.
+# Theme: cases built from failure modes seen in practice.
 #
 # Each of these is designed so that the plausible answer and the correct answer differ.
 # The code in every case is still verified against the tariff — "adversarial" describes
@@ -6,14 +6,13 @@
 #
 # Three families:
 #   name-vs-material  the product NAME points at one group, the MATERIAL puts it in
-#                     another. Group 40 (гума) vs group 64 (взуття) is the textbook one,
-#                     and v1 had no measurement that would have caught it.
-#   non-terminal-echo the user offers a code that is real but NOT declarable. v1 rendered
-#                     whatever the model produced, so a 4- or 6-digit "answer" reached the
+#                     another. Group 40 (гума) vs group 64 (взуття) is the textbook one.
+#   non-terminal-echo the user offers a code that is real but NOT declarable. Rendering
+#                     whatever the model produced lets a 4- or 6-digit "answer" reach the
 #                     user as if it were a result. The system must drill to a 10-digit leaf.
 #   multi-product     two goods in one message. One 10-digit code cannot cover both.
 #
-# Schema: see evals/README.md. Verified by evals/build_golden.py.
+# Schema and verification: evals/build_golden.py.
 
 - id: adv-rubber-boots
   input: "Чоботи гумові робочі, що закривають щиколотку, верх і підошва з вулканізованої гуми"
@@ -65,7 +64,7 @@
   rationale: >-
     Same goods as live-plastics-film, with a non-terminal code asserted by the user.
     3919 10 exists and is correct as far as it goes, but it has children and is therefore
-    not declarable. Agreeing with the user and echoing "3919 10" is the v1 failure this
+    not declarable. Agreeing with the user and echoing "3919 10" is the failure this
     case exists to catch; the turn must go down to the 10-digit leaf.
   source: domain-reasoning
   tags: [plastics, non-terminal-echo]

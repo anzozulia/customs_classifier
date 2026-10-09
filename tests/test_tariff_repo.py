@@ -445,7 +445,7 @@ async def test_an_empty_database_says_so_instead_of_answering_nothing(
     uningested: TariffRepo,
 ) -> None:
     """A tariff that was never ingested must not look like a tariff with no sections —
-    `/readyz` turns this into a 503, and v1's silence here cost two months."""
+    `/readyz` turns this into a 503."""
     with pytest.raises(NoActiveDatasetError):
         await uningested.list_sections()
 
@@ -456,8 +456,8 @@ async def test_an_empty_database_says_so_instead_of_answering_nothing(
 
 
 async def test_a_two_digit_code_is_always_a_group_never_a_section(repo: TariffRepo) -> None:
-    """THE bug this schema deletes. Section 07 is «Пластмаси…»; group 07 is «Овочі…». v1
-    accepted a bare "07" for both and silently walked into the wrong subtree."""
+    """THE bug this schema deletes. Section 07 is «Пластмаси…»; group 07 is «Овочі…».
+    Accepting a bare "07" for both silently walks into the wrong subtree."""
     assert level_for_code("07") == "group"
 
     node = await repo.resolve("07")
@@ -537,8 +537,8 @@ async def test_an_unknown_group_and_a_reserved_one_look_the_same_until_resolved(
 
 
 async def test_a_code_is_normalised_at_the_boundary(repo: TariffRepo) -> None:
-    """`XXXX XX XX XX` is what a human pastes and what the model echoes. v1 delegated the
-    format rule to model obedience in three places."""
+    """`XXXX XX XX XX` is what a human pastes and what the model echoes. The format
+    rule is enforced here, not delegated to model obedience."""
     assert normalize_code(" 3919 10 12-00\u00a0") == "3919101200"
 
     spaced = await repo.resolve("3919 10 12 00")
@@ -556,7 +556,7 @@ async def test_resolve_reads_full_path_and_is_terminal_from_the_database(
     repo: TariffRepo,
 ) -> None:
     """The two fields nothing downstream may reconstruct: `full_path`, because the leaf is
-    called «інші», and `is_terminal`, because in v1 `is_final` was a prompt promise."""
+    called «інші», and `is_terminal`, because it must not be a prompt promise."""
     node = await repo.resolve("3919101200")
 
     assert node is not None
@@ -595,8 +595,8 @@ async def test_resolve_reports_a_full_path_shared_with_a_sibling(repo: TariffRep
 async def test_resolve_returns_none_for_a_code_that_is_not_in_the_dataset(
     repo: TariffRepo,
 ) -> None:
-    """`None` is the answer the validation gate turns into E2 — v1 never checked, and a
-    hallucinated code reached the user as an answer."""
+    """`None` is the answer the validation gate turns into E2 — unchecked, a
+    hallucinated code reaches the user as an answer."""
     assert await repo.resolve("9999999999") is None
     assert await repo.resolve("0000") is None
 
@@ -834,8 +834,8 @@ async def test_search_answers_with_the_fields_the_model_needs_to_open_a_branch(
 async def test_the_catalogue_lists_every_section_with_both_numbering_systems(
     repo: TariffRepo,
 ) -> None:
-    """Rule 2: `Розділ NN (групи A–B):`. v1 spent 622 characters of prose telling the model
-    which 2-digit namespace a number belonged to; labelling both deletes the prose."""
+    """Rule 2: `Розділ NN (групи A–B):`. Labelling both numbering systems replaces prose
+    telling the model which 2-digit namespace a number belongs to."""
     catalogue = await build_sections_catalogue(repo)
     headings = [line for line in catalogue.splitlines() if line.startswith("Розділ")]
 

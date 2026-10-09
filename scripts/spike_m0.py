@@ -2,7 +2,7 @@
 
 # the en dash are correct typography here, not Latin look-alikes; pyproject pins ruff's
 # defaults (no allowed-confusables), so the exemption is declared per file.
-"""M0 — the risk spike, run against the live API.
+"""The risk spike, run against the live API.
 
 Nothing in the ChatKit + Agents SDK integration has ever been run against a real OpenAI API.
 This script runs it, with an in-memory Store and a hand-written eight-node tariff, and prints a
@@ -14,12 +14,12 @@ Checked here:
 
   * a tool-calling stream completes without an exception inside `stream_agent_response`
     (the 1.6.5 fix is verified from a diff and never from a live tool-calling run);
-  * a REJECTED terminal tool produces ANOTHER model turn rather than a dead run — the §6.4
-    finding, executed: `StopAtTools` matches the CALL, so only a `ToolsToFinalOutputFunction`
+  * a REJECTED terminal tool produces ANOTHER model turn rather than a dead run:
+    `StopAtTools` matches the CALL, so only a `ToolsToFinalOutputFunction`
     can keep the run alive;
   * reasoning summary events arrive as `ThoughtTask`s, which is what `summary="auto"` buys;
   * `ProgressUpdateEvent` and the drill-down `CustomTask`s are emitted;
-  * `result.current_turn` and `usage` are recorded at all — v1 never recorded a token count.
+  * `result.current_turn` and `usage` are recorded at all, so token counts exist.
 
 Three exit criteria are deliberately NOT here because they are visual and need a browser:
 `ProgressUpdateEvent` rendering, the Thinking panel, and a `.widget` result card.
@@ -510,7 +510,7 @@ async def run_spike() -> int:
 
 
 async def run_forced_rejection() -> int:
-    """Phase 2 — prove architecture decision D13 with a DETERMINISTIC rejection.
+    """Phase 2 — prove the repair path with a DETERMINISTIC rejection.
 
     Phase 1 can only observe the repair path if the model happens to get it wrong, which it
     usually does not. So we force `TurnLedger.require` to raise exactly once, which is what a
@@ -519,7 +519,7 @@ async def run_forced_rejection() -> int:
     What is under test: `stop_at_tool_names` matches on the tool NAME, not the tool RESULT
     (verified in agents/run_internal/turn_resolution.py), so it would end the run even on a
     rejected emit. `finalize_on_terminal_tool` inspects the Ack instead. If this phase fails,
-    the prompt's promise that the model may correct itself is a lie and D13 needs rework.
+    the prompt's promise that the model may correct itself is a lie and the design needs rework.
     """
     from app.agent.provenance import ProvenanceError, TurnLedger
 

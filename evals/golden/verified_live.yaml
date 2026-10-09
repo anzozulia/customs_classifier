@@ -5,7 +5,7 @@
 # are the only cases whose difficulty is honest: the wording is what a human actually
 # typed, not text reverse-engineered from the answer.
 #
-# Schema: see evals/README.md. Verified by evals/build_golden.py.
+# Schema and verification: evals/build_golden.py.
 
 - id: live-plastics-film
   input: "Самоклейна плівка з полівінілхлориду у рулоні завширшки 15 см"

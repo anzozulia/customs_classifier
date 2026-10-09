@@ -20,5 +20,5 @@ class RequestContext:
     request_id: str
     locale: str = "uk"
     # Turn-scoped provenance. A code may only be emitted if THIS turn's tool results
-    # contained it — the structural fix for v1's measured 36% stale-carry-over rate.
+    # contained it — the structural fix for codes carried over stale from earlier turns.
     ledger: TurnLedger = field(default_factory=TurnLedger)

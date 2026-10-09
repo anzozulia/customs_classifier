@@ -5,13 +5,13 @@
 # description was written FROM its full_path. That makes these cases easier than real user
 # input, because the vocabulary already matches the tariff's own wording. They measure
 # whether the navigation reaches the right leaf, not whether the system can bridge
-# consumer language to tariff language. See the "Honest limits" section of evals/README.md.
+# consumer language to tariff language.
 #
 # Leaves whose description is the bare residual "інші" were excluded on purpose: 2,473 of
 # the 10,490 terminals carry it, and a human could not classify into one from a product
 # description either.
 #
-# Schema: see evals/README.md. Verified by evals/build_golden.py.
+# Schema and verification: evals/build_golden.py.
 
 - id: food-grated-cheese
   input: "Сир твердий тертий, фасований у пакети по 100 г"

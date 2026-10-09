@@ -3,8 +3,7 @@
 
 No database, no asyncpg, no Agents SDK, no network: this suite parses
 `data/uktzed_hierarchical.json` and asserts what ingest is supposed to produce. It is the
-cheapest possible guard on the one input the whole product is a wrapper around — and v1
-`.gitignore`d that file, so nothing could have been asserted about it at all.
+cheapest possible guard on the one input the whole product is a wrapper around.
 
 Every count here is measured, and every count is meant to break on a genuine tariff update.
 That is the design: a new release becomes a deliberate, reviewed ingest instead of a silent
@@ -40,7 +39,7 @@ from app.tariff.ingest import (  # noqa: E402
 
 SOURCE = ROOT / "data" / "uktzed_hierarchical.json"
 
-# 3919101200, the worked example from v1's prompt. v1 advertised its description as
+# 3919101200, the worked example in the system prompt. Its description is easy to misquote as
 # "…самоклейні, у рулонах завширшки не більш як 20 см, з полівінілхлориду або поліетилену",
 # which is NOT what the file says: the heading ends "у рулонах або не у рулонах", and
 # "у рулонах завширшки не більш як 20 см" is the 6-digit subheading below it. The test

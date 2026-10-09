@@ -39,7 +39,7 @@ def upgrade() -> None:
         sa.Column("password_hash", sa.Text(), nullable=False),  # argon2id, from app.auth.passwords
         sa.Column("display_name", sa.Text(), nullable=False, server_default=""),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        # Reserved for the feedback/correction path (§9): only a reviewer may attach a
+        # Reserved for the feedback/correction path: only a reviewer may attach a
         # corrected_code. Declared here so the records migration never has to ALTER this
         # table while the app is running.
         sa.Column("is_reviewer", sa.Boolean(), nullable=False, server_default=sa.false()),

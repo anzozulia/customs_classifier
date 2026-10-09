@@ -1,8 +1,8 @@
 """One asyncpg pool for the whole process.
 
-v1 opened a brand-new connection at 15 separate call sites and pooled nothing: every tool
-call paid a fresh TCP + auth round trip, and a connection leak was one `except:` away.
-Here there is exactly one pool, created in the FastAPI lifespan and closed on shutdown.
+Opening a connection per call site would make every tool call pay a fresh TCP + auth round
+trip and leave a connection leak one `except:` away. There is exactly one pool, created in
+the FastAPI lifespan and closed on shutdown.
 
 Deliberately simple: asyncpg's `Pool` IS the data-access object. There is no repository
 class wrapping it, no session factory, no unit-of-work. The SQL lives next to the code
@@ -49,7 +49,7 @@ async def init_pool(
 
     max_size=10 is sized for the deployment target (one uvicorn worker, ~22 users), and
     every query in this app is a single-row or single-page lookup measured in milliseconds.
-    command_timeout is the bound v1 never had anywhere: a wedged query fails the turn
+    command_timeout bounds every query: a wedged query fails the turn
     instead of holding a connection until the 600 s driver default.
     """
     global _pool

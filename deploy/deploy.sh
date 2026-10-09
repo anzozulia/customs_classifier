@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# UKTZED v2 — the deploy script that runs ON THE VPS, as root, out of /root/uktzed-v2.
+# UKTZED — the deploy script that runs ON THE VPS, as root, out of /root/uktzed-v2.
 #
 # It is copied here by .github/workflows/deploy.yml on every deploy, together with
 # docker-compose.prod.yml. Edit it in the repo, not on the box — a local
@@ -128,10 +128,10 @@ compose() {
 
 preflight() {
   [[ "${EUID}" -eq 0 ]] || die "run this as root; the whole deployment lives in ${ROOT_DIR}"
-  [[ -f "$COMPOSE_FILE" ]] || die "missing ${COMPOSE_FILE} — the deploy workflow copies it there; see CICD.md step E"
-  [[ -f "$ENV_FILE" ]] || die "missing ${ENV_FILE} — copy .env.example and fill it in; see CICD.md step E"
-  command -v docker >/dev/null 2>&1 || die "docker is not installed; see CICD.md step E"
-  docker compose version >/dev/null 2>&1 || die "the docker compose v2 plugin is not installed; see CICD.md step E"
+  [[ -f "$COMPOSE_FILE" ]] || die "missing ${COMPOSE_FILE} — the deploy workflow copies it there"
+  [[ -f "$ENV_FILE" ]] || die "missing ${ENV_FILE} — copy .env.example and fill it in; see README.md"
+  command -v docker >/dev/null 2>&1 || die "docker is not installed"
+  docker compose version >/dev/null 2>&1 || die "the docker compose plugin is not installed"
 }
 
 # One deploy at a time. Two overlapping `compose up` runs on one box recreate the same
@@ -215,7 +215,7 @@ pull_image() {
   # Pulled BEFORE anything is stopped. A bad tag, an expired GHCR PAT or a registry outage
   # must fail while the current version is still serving, not halfway through a recreate.
   docker pull "${APP_IMAGE}:${APP_TAG}" \
-    || die "could not pull ${APP_IMAGE}:${APP_TAG}. If that said 'denied' or 'unauthorized', the read PAT has expired — re-run the docker login from CICD.md step D."
+    || die "could not pull ${APP_IMAGE}:${APP_TAG}. If that said 'denied' or 'unauthorized', the read PAT has expired — re-run docker login ghcr.io with a fresh read-only PAT."
 }
 
 # `compose run --rm migrate` runs the NEW image's `alembic upgrade head` in a one-shot
@@ -277,7 +277,7 @@ do_rollback() {
 
 cmd_deploy() {
   local ref="${1:-}"
-  [[ -n "$ref" ]] || die "usage: $0 deploy <image>:<tag>   e.g. ghcr.io/owner/uktzed-v2:sha-abc1234"
+  [[ -n "$ref" ]] || die "usage: $0 deploy <image>:<tag>   e.g. ghcr.io/owner/customs_classifier:sha-abc1234"
 
   local new_image="${ref%:*}" new_tag="${ref##*:}"
   [[ "$ref" == *:* && "$new_tag" != */* && -n "$new_image" && -n "$new_tag" ]] \
@@ -459,7 +459,7 @@ cmd_compose() {
 
 usage() {
   cat <<'USAGE'
-UKTZED v2 deploy — runs on the VPS, as root, from /root/uktzed-v2
+UKTZED deploy — runs on the VPS, as root, from /root/uktzed-v2
 
   ./deploy.sh deploy <image>:<tag>   pull, migrate, up, wait for /readyz, roll back on failure
   ./deploy.sh rollback               re-point to PREVIOUS_TAG and bring it back up

@@ -135,7 +135,7 @@ class Ack(UAModel):
     """What a terminal tool returns.
 
     `ok=False` keeps the run alive so the model can correct itself — which is why a rejected
-    code is a field here and not an exception (§6.4, `ToolsToFinalOutputFunction`).
+    code is a field here and not an exception (`ToolsToFinalOutputFunction`).
     """
 
     ok: bool = Field(alias="успіх")

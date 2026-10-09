@@ -146,7 +146,7 @@ class Overview(BaseModel):
     model: str
     reasoning_effort: str
     #: The prompt this process would run right now — read from `app/agent/prompts`, never a
-    #: literal. v1 shipped a banner naming a model and a prompt it did not run.
+    #: literal, so the panel can never name a prompt the process does not run.
     prompt_version: str
     prompt_sha256: str | None
     dataset_sha256: str | None

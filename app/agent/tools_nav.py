@@ -2,10 +2,10 @@
 # defaults (no allowed-confusables), so the exemption is declared per file.
 """Navigation tools — the tariff tree walk, one tool per level, plus search and resolve.
 
-Sections are NOT addressable (D19). All 21 section codes are also group codes, so a bare
+Sections are NOT addressable. All 21 section codes are also group codes, so a bare
 2-digit code always means GROUP; `list_groups_in_section` is the only tool that takes a section
-code and its parameter name says so. v1 pushed both through one `section=` argument and
-silently returned the wrong subtree.
+code and its parameter name says so. Pushing both through one `section=` argument silently
+returns the wrong subtree.
 
 Every tool does the same five things, in this order:
 
@@ -16,20 +16,19 @@ Every tool does the same five things, in this order:
 5. `ledger.end_call(rec, digest=… | error=…)`
 
 Step 3 is what makes `emit_classification`'s gate real: a code is emittable only if some tool
-in THIS turn recorded it here. Step 4 is the fix for v1's worst UX failure — 48.2s of median
-cold latency behind one static string, with only 7.5% of turns finishing under ten seconds.
+in THIS turn recorded it here. Step 4 is what keeps a long cold turn from being dead time
+behind one static string.
 
 **Tools never raise.** A raised exception is turned into an error *string* by the SDK's default
 failure handler, which then fails `output_type` validation and kills the run. Every failure
-comes back as an envelope with the breadcrumb RETAINED — v1 dropped the breadcrumb from exactly
-the one result where the model was already off-track.
+comes back as an envelope with the breadcrumb RETAINED — an error result is exactly the one
+where the model is already off-track.
 
 **Why envelopes wrap the repo's payloads instead of replacing them.** `app.agent.schemas` owns
 the shapes, and every tool result also has to restate the answer contract in `пояснення` at the
-moment the model is looking at codes — v1's `tools.py:331` pattern, which its own post-mortem
-called the cheapest and most reliable reinforcement in the project. Wrapping keeps one
-definition of `CategoryTree` and adds the one field that is about the *contract* rather than
-about the data.
+moment the model is looking at codes — the cheapest and most reliable reinforcement there
+is. Wrapping keeps one definition of `CategoryTree` and adds the one field that is about the
+*contract* rather than about the data.
 """
 
 from __future__ import annotations
@@ -223,7 +222,7 @@ async def _breadcrumb(repo: TariffRepo, code: str) -> list[PathStep]:
     """Ancestors, section first.
 
     Never raises: a missing breadcrumb must not take down the result that carries it, and
-    v1's one dropped breadcrumb was on the error path.
+    the error path is where the breadcrumb matters most.
     """
     try:
         rows = await repo.ancestry(code)
@@ -280,8 +279,8 @@ async def list_groups_in_section(ctx: Ctx, section_code: str) -> NodeListResult:
         # derives the level from the code's LENGTH — where two digits always means a GROUP
         # (repo.level_for_code). Asking for section 16 therefore returned GROUP 16's parent,
         # so a listing of «Машини, обладнання та механізми» was labelled section 04,
-        # «Готові харчові продукти». That is the D19 collision the whole data layer exists to
-        # make unrepresentable, surviving in one decoration. Confirmed against the real
+        # «Готові харчові продукти». That is the section/group collision the whole data layer
+        # exists to make unrepresentable, surviving in one decoration. Confirmed against the real
         # dataset before this fix; pinned by test_tools_nav.py.
         path: list[PathStep] = []
         _record_summaries(ledger, rows, rec.index)

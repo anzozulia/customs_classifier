@@ -1,4 +1,4 @@
-# UKTZED v2 — continuous integration.
+# UKTZED — continuous integration.
 #
 # Five jobs. The four cheap ones (lint, test, eval, web) start together and fail fast;
 # `image` waits for them, because a 5-minute Docker build that rebuilds the Vite bundle

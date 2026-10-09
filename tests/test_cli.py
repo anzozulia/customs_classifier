@@ -1108,8 +1108,8 @@ def test_ingest_of_an_already_present_dataset_is_a_success_not_a_load(
 def test_ingest_defaults_to_the_committed_dataset_and_activates(
     db: FakePool, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`make ingest`, the Dockerfile and the README all call `python -m app.cli ingest` with no
-    path. Changing the default silently makes those three ingest nothing."""
+    """`make ingest` and the Dockerfile call `python -m app.cli ingest` with no path.
+    Changing the default silently makes those two ingest nothing."""
     seen = _stub_ingest(
         monkeypatch,
         result=IngestResult(
@@ -1182,8 +1182,8 @@ def test_ingest_refusal_exits_non_zero_and_prints_every_failure(
 
 
 def test_the_cli_exposes_exactly_the_commands_the_deploy_docs_invoke(runner: CliRunner) -> None:
-    """These eight names are hard-coded in the module docstring, the README, the Makefile and
-    the Dockerfile. Renaming one is a documentation change everywhere or a broken deploy."""
+    """These eight names are hard-coded in the module docstring, the Makefile and the
+    Dockerfile. Renaming one is a documentation change everywhere or a broken deploy."""
     assert {command.name for command in cli_app.registered_commands} == {
         "create-user",
         "grant-superuser",

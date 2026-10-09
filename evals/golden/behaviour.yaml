@@ -1,17 +1,17 @@
 # Theme: what the turn should DO, not only which code it lands on.
 #
 # A turn ends in exactly one of three ways, and which one is a product decision, not a
-# failure mode. In v1 production 17.4% of turns were clarifications; an eval that scores a
-# clarification as a miss will push the system toward confident wrong codes, which is the
-# worst possible outcome when a code has legal and financial consequences. So the
-# clarification and conversation cases below are scored as strictly as the code cases.
+# failure mode. An eval that scores a clarification as a miss will push the system toward
+# confident wrong codes, which is the worst possible outcome when a code has legal and
+# financial consequences. So the clarification and conversation cases below are scored as
+# strictly as the code cases.
 #
 # The four dimension cases come in pairs that straddle a threshold in the tariff text.
 # Each pair shares its wording except for one number. A model that reads the product and
 # ignores the measurement gets exactly one of each pair right, which is visible in the
 # scores and invisible in any aggregate accuracy figure.
 #
-# Schema: see evals/README.md. Verified by evals/build_golden.py.
+# Schema and verification: evals/build_golden.py.
 
 - id: beh-vague-terse
   input: "треба код"

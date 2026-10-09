@@ -4,10 +4,10 @@ Revision ID: 0004_records
 Revises: 0003_tariff
 Create Date: 2026-09-16
 
-This is the table v1 did not have. v1 wrote a row only when a turn *succeeded*, so every
-crashed, cancelled or wall-clocked turn was invisible, and its 1,403 classifications left
-ZERO usable input/output pairs behind: no tokens, no latency, no tool trace, and no record
-at all of the 29 turns that failed. The shape below is the fix, and three properties carry it:
+Writing a row only when a turn *succeeds* makes every crashed, cancelled or wall-clocked
+turn invisible and leaves no usable input/output pairs behind: no tokens, no latency, no
+tool trace, and no record at all of the turns that failed. The shape below avoids that, and
+three properties carry it:
 
 * **The row is INSERTed `pending` BEFORE the model runs.** `app/records/writer.py` opens the
   record in `begin_turn()` and closes it in `finish_turn()` / `fail_turn()`. A turn that
@@ -19,7 +19,7 @@ at all of the 29 turns that failed. The shape below is the fix, and three proper
   `result | clarification | conversation` (`app.agent.Outcome`) and the HTTP contract's is
   `classified | clarification | error | pending` (`web/src/lib/history.ts`). `result` is
   stored as `classified`, and `conversation` — a turn that answered in prose without ever
-  reaching a terminal tool, 29/1,403 in v1 — is stored as itself and collapsed to
+  reaching a terminal tool — is stored as itself and collapsed to
   `classified` only at the API boundary. Collapsing it here instead would make "how often
   does the agent chat instead of classifying?" unanswerable from the record, which is one of
   the few questions this table exists to answer. The CHECK is the closed vocabulary.
@@ -73,7 +73,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
         # NULL for as long as the turn is running. `outcome = 'pending' AND finished_at IS
-        # NULL` is the abandoned-turn query v1 could not write.
+        # NULL` is the abandoned-turn query.
         sa.Column("finished_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("input_text", sa.Text(), nullable=False),
         sa.Column("outcome", sa.Text(), nullable=False),
@@ -83,11 +83,10 @@ def upgrade() -> None:
         # write must never be the thing that fails.
         sa.Column("error_class", sa.Text(), nullable=True),
         sa.Column("duration_ms", sa.Integer(), nullable=True),
-        # Time to first streamed event — the number the user actually feels. v1's median cold
-        # latency was 48.2 s behind one static string and nothing measured it.
+        # Time to first streamed event — the number the user actually feels.
         sa.Column("ttfb_ms", sa.Integer(), nullable=True),
-        # From app/settings.py, NEVER a literal: v1's banner claimed o3 + gpt-5 while the code
-        # ran o4-mini + gpt-4.1, and its logs lied for two months.
+        # From app/settings.py, NEVER a literal: a hardcoded name drifts from the model the
+        # code actually runs, and the record then lies.
         sa.Column("model", sa.Text(), nullable=False),
         sa.Column("prompt_version", sa.Text(), nullable=False),
         # The rendered prompt's digest. prompt_version alone cannot tell two renderings of the

@@ -9,7 +9,7 @@
 # That is the shape of the tariff in these sections and the reason a product name alone is
 # rarely enough.
 #
-# Schema: see evals/README.md. Verified by evals/build_golden.py.
+# Schema and verification: evals/build_golden.py.
 
 - id: cons-leather-belt
   input: "Пасок чоловічий з натуральної шкіри з металевою пряжкою"

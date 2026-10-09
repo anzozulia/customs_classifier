@@ -4,8 +4,8 @@ Two modules, one table, and a deliberately small surface:
 
 * `writer` — the three-call lifecycle (`begin_turn` / `finish_turn` / `fail_turn`) that
   `app/chat/server.py` drives. The row is INSERTed `pending` BEFORE the model runs, which is
-  the entire reason this package exists: v1 wrote a record only on success and every crashed
-  turn vanished.
+  the entire reason this package exists: a record written only on success lets every
+  crashed turn vanish.
 * `pricing` — `price_usd()`, a versioned per-model price table.
 
 Re-exported here so call sites read `from app.records import begin_turn` rather than reaching

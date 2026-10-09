@@ -1,21 +1,18 @@
 """The metrics. This file defines what "better" means, so read it before you trust a number.
 
-v1 had no evaluation at all: `test_agents.py` called eight functions that were never defined,
-so it crashed on import in every commit, and 1,403 production classifications produced zero
-measured accuracy. That is precisely why exactly one prompt line changed in ten commits — with
-nothing to measure, every change is a coin flip nobody can call. This module is the answer, and
-it is deliberately small: pure functions over a golden case and one observation, no I/O, no
-model, no judge.
+With nothing to measure, every change is a coin flip nobody can call. This module is the
+answer, and it is deliberately small: pure functions over a golden case and one observation, no
+I/O, no model, no judge.
 
 WHAT IS MEASURED, AND WHY EACH DENOMINATOR IS WHAT IT IS
 --------------------------------------------------------
 
 A turn ends in exactly one of three ways, decided by which terminal tool the agent called:
 `emit_classification` -> "result", `ask_clarification` -> "clarification", neither ->
-"conversation" (plus "error", the failure branch). **A clarification is not a failure.** In v1
-production 17.4% of turns were clarifications and the loop is part of the product. An eval that
-scores a clarification as a wrong answer optimises the system into confident guessing, and a
-wrong customs code has legal and financial consequences — it is the single worst outcome here.
+"conversation" (plus "error", the failure branch). **A clarification is not a failure.** The
+clarification loop is part of the product. An eval that scores a clarification as a wrong
+answer optimises the system into confident guessing, and a wrong customs code has legal and
+financial consequences — it is the single worst outcome here.
 
 So the scorecard splits the two questions the metrics could otherwise blur:
 
@@ -337,12 +334,11 @@ def case_from_golden(golden: Any, *, location: str = "") -> Case:
 def _load_via_golden_builder(root: Path) -> list[Case] | None:
     """Load a YAML golden directory through `evals.build_golden`, its own schema authority.
 
-    `evals/README.md` states it plainly: `build_golden.py` is the single implementation of the
-    golden-set schema and the harness should not re-parse the YAML. That loader is strict where
-    this module is tolerant — it rejects unknown fields, demands a rationale and a source, and
-    reports every structural problem at once instead of the first — and running it on every
-    eval run is how a typo in a case file fails loudly instead of silently changing a
-    denominator.
+    `build_golden.py` is the single implementation of the golden-set schema and the harness
+    should not re-parse the YAML. That loader is strict where this module is tolerant — it
+    rejects unknown fields, demands a rationale and a source, and reports every structural
+    problem at once instead of the first — and running it on every eval run is how a typo in a
+    case file fails loudly instead of silently changing a denominator.
 
     `None` means "not applicable, use the plain reader": no YAML here (a `.json` fixture
     directory), or `build_golden` is not importable. A YAML directory that IS there and does
@@ -1049,7 +1045,7 @@ def _money(value: Decimal | None) -> str | None:
 @dataclass(frozen=True, slots=True)
 class ReportMeta:
     """Which system produced these numbers. Without this a baseline is a number with no
-    provenance — exactly v1's problem, where four documents gave four accounts of what ran."""
+    provenance."""
 
     generated_at: str = ""
     model: str | None = None

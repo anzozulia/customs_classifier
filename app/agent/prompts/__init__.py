@@ -1,14 +1,13 @@
 """Prompt rendering.
 
 `PROMPT_VERSION` is stamped on every classification row together with the sha256 of the
-*rendered* text, so "which prompt produced this answer" is answerable from SQL alone. v1
-could not answer it at all: four documents gave four different accounts of what it ran.
+*rendered* text, so "which prompt produced this answer" is answerable from SQL alone.
 
-**No Jinja2.** The template is named `.jinja` because the architecture names it so and
-because editors highlight it, but it has exactly two holes and jinja2 is not a dependency of
-this project. A `{{ name }}` substitution plus a `{# … #}` comment strip is twenty lines;
-adding a templating engine for two variables is not. Unfilled holes raise rather than ship a
-literal `{{ … }}` to the model — that is the one Jinja behaviour worth keeping.
+**No Jinja2.** The template is named `.jinja` because editors highlight it, but it has
+exactly two holes and jinja2 is not a dependency of this project. A `{{ name }}` substitution
+plus a `{# … #}` comment strip is twenty lines; adding a templating engine for two variables
+is not. Unfilled holes raise rather than ship a literal `{{ … }}` to the model — that is the
+one Jinja behaviour worth keeping.
 """
 
 from __future__ import annotations
@@ -52,7 +51,7 @@ def render_system_prompt(*, catalogue: str, locale: str = "uk") -> tuple[str, st
     Args:
         catalogue: P2, the section catalogue, generated at ingest and frozen with the dataset.
         locale: the request locale, threaded through instead of asserting "answer in
-            Ukrainian" seven times the way v1 did.
+            Ukrainian" over and over in prose.
 
     Returns:
         `(text, sha256)` — the exact string handed to the model and the hash recorded with

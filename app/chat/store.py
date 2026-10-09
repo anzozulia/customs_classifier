@@ -322,7 +322,7 @@ class PgStore(Store[RequestContext]):
             raise NotFoundError(f"Item {item_id} not found")
 
     # ---- attachments -------------------------------------------------------
-    # v2 ships with uploads OFF (attachment_store=None), so these are never called. They are
+    # This app ships with uploads OFF (attachment_store=None), so these are never called. They are
     # still @abstractmethod on Store — the class will not instantiate without them. Scoped
     # properly rather than stubbed with `pass`: a `pass` stub is a latent cross-user read the
     # day anyone turns attachments on.

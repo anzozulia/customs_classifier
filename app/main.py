@@ -4,10 +4,10 @@ One FastAPI application: login, `/chatkit`, `/api/history`, health. ChatKit is
 framework-agnostic — `process()` takes bytes — so nothing here is a ChatKit adapter; it is
 ordinary FastAPI with one streaming endpoint.
 
-`/readyz` is not a ping. It answers the three questions that made v1 undebuggable: is the
-database reachable, is the tariff actually ingested, and which model is configured. v1 shipped
-a banner claiming `o3` + `gpt-5` while the code constructed `o4-mini` + `gpt-4.1`, and the logs
-lied for two months — so the model id is reported here, read from the config object.
+`/readyz` is not a ping. It answers the three questions that make a deployment debuggable: is
+the database reachable, is the tariff actually ingested, and which model is configured. A
+hardcoded banner can claim one model while the code constructs another — so the model id is
+reported here, read from the config object.
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.server = ClassifierServer(store, tariff)
 
     logger.info("started: model=%s db=%s", settings.model, pool.get_max_size())
-    # M2: the one line that lets a deployer see the 403 trap before a visitor hits it. Lives
+    # The one line that lets a deployer see the 403 trap before a visitor hits it. Lives
     # here, not at import — uvicorn configures logging after the module loads, so an import-
     # time logger.info is silently dropped (measured: it never reached `docker compose logs`).
     logger.info("same-origin check accepts Origin in %s", sorted(allowed_origins()))
@@ -111,7 +111,7 @@ def refuse_misconfigured_production(settings: Settings) -> None:
     smoke test with the placeholder key booted green. Guards that only run when something
     ELSE is already wrong are not guards.
 
-    M3: in production ChatKit verifies CHATKIT_DOMAIN_KEY against the OpenAI org allowlist
+    In production ChatKit verifies CHATKIT_DOMAIN_KEY against the OpenAI org allowlist
     and, on failure, UNMOUNTS the chat. The server sees nothing, both health checks stay
     green, and every visitor gets an empty card. The placeholder must be a boot failure.
     """
@@ -153,7 +153,7 @@ class _SpaFiles(StaticFiles):
 
     The frontend uses `BrowserRouter`, so `/history/<id>` is a client-side route with no file
     behind it. Plain `StaticFiles` answers 404 and a reload on any deep link dies — which is
-    exactly the failure `web/README.md` asks the deploy to prevent. Falling back to
+    exactly the failure the deploy must prevent. Falling back to
     `index.html` for a missing path is the whole of "SPA fallback".
 
     Deliberately not a catch-all `@app.get("/{path:path}")`: this is mounted LAST, so the API
@@ -217,7 +217,7 @@ async def readyz(request: Request) -> JSONResponse:
 
     # The EFFECTIVE model, not the configured one. Since 0005 a superuser can change it from
     # the admin panel with no redeploy, and a readiness probe still reporting the .env value
-    # would be v1's lying banner with a new coat of paint. `get_runtime` falls back to the
+    # would be a lying banner with a new coat of paint. `get_runtime` falls back to the
     # environment when `app_setting` holds no row — and when the database is unreachable, a
     # case the `db` check above has already reported — so it cannot raise here.
     model = await get_runtime("model")

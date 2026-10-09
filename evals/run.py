@@ -13,7 +13,7 @@ Exit codes — this is a gate, so they are the contract:
         metric worse by more than one case's worth of rate)
     2   could not run at all: no cases, no API key, a malformed golden file, a dead database
 
-`--model` is one flag because "terra or luna" is the open question the architecture flagged and
+`--model` is one flag because "terra or luna" is the open question and
 it should cost one command to answer: the override goes into the environment BEFORE the first
 `get_settings()` result is used, so the model id reaching the API, the price table and the
 recorded `classification` row are all the same string. One model per process — `build_agent`

@@ -305,8 +305,8 @@ def ingest(
 ) -> None:
     """Load the tariff JSON into Postgres. Idempotent per content sha256.
 
-    Same function as `scripts/ingest.py` — this command exists because `make ingest`, the
-    Dockerfile and the README all call `python -m app.cli ingest <path>`, and the container
+    Same function as `scripts/ingest.py` — this command exists because `make ingest` and the
+    Dockerfile both call `python -m app.cli ingest <path>`, and the container
     image is the only place the data and the driver are guaranteed to be together.
 
     `ingest_file` needs a `Connection`, not a `Pool` (`copy_records_to_table` is

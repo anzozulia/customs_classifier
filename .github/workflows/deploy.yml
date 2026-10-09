@@ -1,4 +1,4 @@
-# UKTZED v2 — production deploy. Master only.
+# UKTZED — production deploy. Master only.
 #
 # Build here, pull there. The VPS never builds: `npm ci` + a Vite bundle + a full pip
 # resolve (which includes a git clone of chatkit-python) is minutes of CPU and enough RAM
@@ -94,7 +94,7 @@ jobs:
 
       # The built-in token, not a PAT. `permissions: packages: write` above is what makes it
       # able to push, and it expires when the job ends. The VPS cannot use this token — it
-      # needs its own read-only PAT; see CICD.md step D.
+      # needs its own read-only PAT, logged in once on the server.
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io

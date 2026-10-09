@@ -1,7 +1,6 @@
 """The per-run agent context — and the one file that keeps the import graph acyclic.
 
-`UktzedContext` lives here rather than in `app/agent/__init__.py` (the architecture's §5.4
-location, and the one that actually works) because of a hard cycle:
+`UktzedContext` lives here rather than in `app/agent/__init__.py` because of a hard cycle:
 
     app/context.py          -> app.agent.provenance   (needs TurnLedger at runtime,
                                                         for `field(default_factory=…)`)

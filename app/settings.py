@@ -1,8 +1,8 @@
 """Single source of truth for configuration.
 
-The model id lives here and ONLY here. v1 hardcoded a banner that claimed `o3` + `gpt-5`
-while the code constructed `o4-mini` + `gpt-4.1`, and the logs lied for two months.
-Everything that reports the model reads it from this object.
+The model id lives here and ONLY here, so a banner or log line can never claim one model
+while the code constructs another. Everything that reports the model reads it from this
+object.
 """
 
 from __future__ import annotations
@@ -25,9 +25,9 @@ class Settings(BaseSettings):
     # Send agent traces to the OpenAI Traces dashboard AND let the Responses API retain each
     # request (the Logs page). One switch for both: they are the two halves of "can I see
     # this run on platform.openai.com". Off means nothing about a classification exists on
-    # OpenAI's side after the call returns — v1 uploaded 5,482 trace batches of customer
-    # product descriptions that nobody ever read. The app's own /history and the back-office
-    # dashboard record every turn regardless of this setting.
+    # OpenAI's side after the call returns — traces carry customer product descriptions.
+    # The app's own /history and the back-office dashboard record every turn regardless of
+    # this setting.
     openai_telemetry: bool = True
 
     # ChatKit
@@ -39,11 +39,11 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:8000"
     log_level: str = "info"
 
-    # Bounded context replay. v1 replayed the whole transcript: max 796 items,
-    # 68% of the input token bill, and a 2.6x latency tax at 750 items.
+    # Bounded context replay. Replaying the whole transcript lets a long conversation dominate
+    # the input token bill and add latency on every turn.
     history_window_items: int = Field(default=40, ge=4, le=400)
 
-    # Bounds v1 never had. max_turns was its ONLY bound and never bound (max observed 11).
+    # Hard bounds on a turn: agent loop iterations, wall clock, and repair attempts.
     max_turns: int = 20
     turn_wall_clock_s: float = 180.0
     max_repairs: int = 2

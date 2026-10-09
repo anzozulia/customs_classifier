@@ -1,13 +1,14 @@
 # Theme: sections XVI-XVIII — machinery and electrical equipment, vehicles, instruments.
 # Plus one rubber article (4011) that belongs with the vehicles it is fitted to.
 #
-# This is where v1's traffic actually was, and where the tariff punishes a guess hardest:
-# groups 84, 85 and 90 split on wattage, mass, voltage and litres, and the neighbouring
-# leaves are often the same product with one number changed.
+# This is where the tariff punishes a guess hardest: groups 84, 85 and 90 split on
+# wattage, mass, voltage and litres, and the neighbouring leaves are often the same
+# product with one number changed.
 #
-# Tariff-derived; see the "Honest limits" section of evals/README.md.
+# Tariff-derived, with the same caveat as the other derived files: the descriptions were
+# written from the leaves, so the wording is closer to the tariff's than a real user's.
 #
-# Schema: see evals/README.md. Verified by evals/build_golden.py.
+# Schema and verification: evals/build_golden.py.
 
 - id: mach-laptop
   input: "Ноутбук з процесором, клавіатурою та дисплеєм, маса 1,8 кг"
